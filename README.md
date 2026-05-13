@@ -68,22 +68,10 @@ The current architecture uses four reasoning roles:
 The scheduler keeps multiple branches alive, enforces route-local refinement, and exposes the evolving tree through the web UI and HTTP API.
 
 
-## Recommended Default Model Stack
-
-The current recommended preset is:
-
-- planning: `qwen3.5-9b-mlx`
-- modeling: `openai/gpt-oss-120b`
-- review: `qwen/qwen3-4b-2507`
-- non-terminal evaluation: `qwen2.5-0.5b-instruct-mlx`
-
-These defaults are aligned across backend and frontend.
-
 
 ## Requirements
 
 - Conda or another Python environment manager
-- A local OpenAI-compatible chat backend reachable at `http://localhost:1234/api/v1/chat`
 - Access to the configured planning, modeling, review, and evaluation models
 
 The provided environment file installs the Python dependencies used by the API, scheduler, tests, and symbolic skill layer.
