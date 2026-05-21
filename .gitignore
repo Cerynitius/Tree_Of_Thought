@@ -1,0 +1,51 @@
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets and local runtime configuration
+.env
+.env.*
+!.env.example
+
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python environments and packaging output
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Frontend dependencies/build output
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Local logs, scratch files, and benchmark output dumps
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.sqlite
+*.db
+benchmark_results*.json
+direct_*_*.json
+tot_*_*.json
+
+# Notebook/runtime checkpoints
+.ipynb_checkpoints/
