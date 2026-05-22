@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ToT Terminal</title>
-  <link rel="stylesheet" href="/static/style.css?v=15">
+  <link rel="stylesheet" href="/static/style.css?v=17">
 </head>
 <body>
   <div id="app" class="shell">
@@ -32,7 +32,7 @@
           <div class="section-title">LAST ACTION</div>
           <div id="actionFeedback" class="action-feedback status-idle" aria-live="polite">
             <div id="actionFeedbackTitle" class="action-feedback-title">No request yet.</div>
-            <div id="actionFeedbackDetail" class="action-feedback-detail">Use Create Session to start a new run or Load Session State to reconnect to an existing session.</div>
+            <div id="actionFeedbackDetail" class="action-feedback-detail">Use Create &amp; Run to start a new session or Load Session to reconnect to an existing one.</div>
           </div>
         </section>
 
@@ -55,25 +55,21 @@
           <label class="field-label" for="sessionIdInput">Session id</label>
           <div class="field-row">
             <input id="sessionIdInput" class="text-input" type="text" placeholder="paste an existing session id">
-            <button id="attachSessionButton" class="action-button secondary" type="button">LOAD SESSION STATE</button>
+            <button id="attachSessionButton" class="action-button secondary" type="button">LOAD SESSION</button>
           </div>
-          <div class="button-grid compact">
-            <button id="createSessionButton" class="action-button primary" type="button">CREATE SESSION</button>
-            <button id="refreshSessionButton" class="action-button secondary" type="button">REFRESH STATE</button>
-            <button id="runSessionButton" class="action-button secondary" type="button">RUN TO COMPLETION</button>
+          <div class="button-grid session-actions">
+            <button id="createSessionButton" class="action-button primary" type="button">CREATE &amp; RUN</button>
+            <button id="refreshSessionButton" class="action-button secondary" type="button">REFRESH</button>
+            <button id="exportAnswerButton" class="action-button secondary" type="button">EXPORT ANSWER</button>
             <button id="dropSessionButton" class="action-button danger" type="button">DROP SESSION</button>
           </div>
           <div class="action-legend" aria-label="session action meanings">
-            <div class="action-legend-item"><strong>Load Session State</strong><span>Reconnect to an existing session id and fetch its latest tree.</span></div>
-            <div class="action-legend-item"><strong>Create Session</strong><span>Start a new session from the current problem and settings.</span></div>
-            <div class="action-legend-item"><strong>Refresh State</strong><span>Fetch the latest backend snapshot without spending more budget.</span></div>
-            <div class="action-legend-item"><strong>Run To Completion</strong><span>Ask the scheduler to keep expanding until no frontier remains.</span></div>
+            <div class="action-legend-item"><strong>Load Session</strong><span>Reconnect to an existing session id and fetch its latest tree.</span></div>
+            <div class="action-legend-item"><strong>Create &amp; Run</strong><span>Start a new session from the current problem and immediately run it to completion.</span></div>
+            <div class="action-legend-item"><strong>Refresh</strong><span>Fetch the latest backend snapshot without spending more budget.</span></div>
+            <div class="action-legend-item"><strong>Export Answer</strong><span>Download the current best final answer and winning branch summary.</span></div>
             <div class="action-legend-item"><strong>Drop Session</strong><span>Delete the current backend session and clear the UI.</span></div>
           </div>
-          <label class="toggle-row" for="runOnCreateToggle">
-            <input id="runOnCreateToggle" type="checkbox" checked>
-            <span>run on create</span>
-          </label>
         </section>
 
         <details class="panel-section collapsible-section">
@@ -156,7 +152,7 @@
           <div id="treeStats" class="meta-line">no tree loaded</div>
           <div id="selectionStats" class="meta-line">selection: none</div>
         </div>
-        <section class="results-panel" aria-labelledby="resultsPanelTitle">
+        <section id="resultsPanel" class="results-panel" aria-labelledby="resultsPanelTitle">
           <div class="results-panel-header">
             <div>
               <div id="resultsPanelTitle" class="results-panel-title">FINAL SCOREBOARD</div>
@@ -166,10 +162,18 @@
           <div class="results-grid">
             <button id="bestResultCard" class="result-card result-card-best" type="button" disabled>
               <span class="result-card-kicker">BEST FINAL ANSWER</span>
-              <span id="bestResultScore" class="result-card-score">-</span>
-              <span id="bestResultMeta" class="result-card-meta">no result</span>
-              <span id="bestResultFormula" class="result-card-formula">No formula yet.</span>
-              <span id="bestResultThought" class="result-card-thought">Run a session to populate scored leaves.</span>
+              <span class="best-result-header">
+                <span id="bestResultScore" class="result-card-score">-</span>
+                <span id="bestResultMeta" class="result-card-meta">no result</span>
+              </span>
+              <span class="result-card-section">
+                <span class="result-card-label">Final answer</span>
+                <span id="bestResultFormula" class="result-card-formula result-card-answer">No formula yet.</span>
+              </span>
+              <span class="result-card-section">
+                <span class="result-card-label">Winning branch</span>
+                <span id="bestResultThought" class="result-card-thought">Run a session to populate scored leaves.</span>
+              </span>
             </button>
             <div class="candidate-results-wrap">
               <div class="result-card-kicker">CANDIDATES</div>
@@ -207,6 +211,6 @@
   <noscript>
     <div class="noscript-banner">This GUI requires JavaScript to talk to the ToT API.</div>
   </noscript>
-  <script src="/static/app.js?v=16" defer></script>
+  <script src="/static/app.js?v=18" defer></script>
 </body>
 </html>

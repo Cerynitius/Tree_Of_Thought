@@ -197,6 +197,13 @@ class SchedulerSessionStore:
             self._session_snapshots[session_id] = snapshot
         return result
 
+    def publish_snapshot(self, session_id: str, scheduler: ToTTreeScheduler) -> None:
+        snapshot = jsonable_encoder(scheduler.snapshot())
+        with self._lock:
+            if session_id not in self._sessions:
+                raise KeyError(session_id)
+            self._session_snapshots[session_id] = snapshot
+
     def delete(self, session_id: str) -> bool:
         with self._lock:
             session_lock = self._session_locks.get(session_id)
@@ -290,12 +297,22 @@ def _serialize_session_state(store: SchedulerSessionStore, session_id: str) -> d
 
 
 def _run_scheduler(scheduler: ToTTreeScheduler, additional_budget: int) -> ToTTreeScheduler:
+    return _run_scheduler_with_progress(scheduler, additional_budget)
+
+
+def _run_scheduler_with_progress(
+    scheduler: ToTTreeScheduler,
+    additional_budget: int,
+    progress_callback: Optional[Callable[[ToTTreeScheduler], None]] = None,
+) -> ToTTreeScheduler:
     scheduler.target_expansion_budget = max(
         int(getattr(scheduler, "target_expansion_budget", scheduler.expansion_budget)),
         scheduler.expansion_budget + additional_budget,
     )
     scheduler.expansion_budget += additional_budget
-    scheduler.run()
+    scheduler.run(
+        progress_callback=(None if progress_callback is None else lambda: progress_callback(scheduler))
+    )
     return scheduler
 
 
@@ -303,14 +320,25 @@ def _run_scheduler_until_complete(
     session_store: SchedulerSessionStore,
     session_id: str,
 ) -> dict[str, Any]:
+    def publish_progress(scheduler: ToTTreeScheduler) -> None:
+        session_store.publish_snapshot(session_id, scheduler)
+
     state = session_store.execute(
         session_id,
-        lambda scheduler: _run_scheduler(scheduler, 0).snapshot(),
+        lambda scheduler: _run_scheduler_with_progress(
+            scheduler,
+            0,
+            progress_callback=publish_progress,
+        ).snapshot(),
     )
     while state.get("frontier"):
         state = session_store.execute(
             session_id,
-            lambda scheduler: _run_scheduler(scheduler, 1).snapshot(),
+            lambda scheduler: _run_scheduler_with_progress(
+                scheduler,
+                1,
+                progress_callback=publish_progress,
+            ).snapshot(),
         )
     return state
 

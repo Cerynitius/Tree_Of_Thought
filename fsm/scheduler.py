@@ -140,7 +140,7 @@ class ToTTreeScheduler:
             return "awaiting-next-step"
         return "idle"
 
-    def run(self) -> dict[str, Any]:
+    def run(self, progress_callback: Optional[Callable[[], None]] = None) -> dict[str, Any]:
         """Build the root node and expand the tree under scheduler constraints."""
         self._set_run_state(status="busy", phase="preparing-meta-task", last_error="")
 
@@ -162,6 +162,8 @@ class ToTTreeScheduler:
                     )
                     retained_ids = self._rebalance_frontier()
                     root_node.known_vars["selected_for_frontier"] = root_node.id in retained_ids
+                if progress_callback is not None:
+                    progress_callback()
 
             while self._frontier and len(self._expanded_node_ids) < self.expansion_budget:
                 self._set_run_state(status="busy", phase="expanding-frontier")
@@ -179,6 +181,8 @@ class ToTTreeScheduler:
                 for child_context in child_contexts:
                     child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
                     built_children.append((child_node, child_context))
+                    if progress_callback is not None:
+                        progress_callback()
 
                 ranked_children = sorted(
                     built_children,
@@ -272,6 +276,8 @@ class ToTTreeScheduler:
                         "frontier_size_after": len(self._frontier),
                     }
                 )
+                if progress_callback is not None:
+                    progress_callback()
         except Exception as exc:
             self._set_run_state(status="error", phase="error", last_error=str(exc))
             raise
