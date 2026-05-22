@@ -385,6 +385,16 @@ def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
             synthesis_source = "agent_model_synthesis" if tool_notes else "model_synthesis"
         except Exception as exc:  # noqa: BLE001
             synthesis_error = f"synthesis_error: {exc}"
+    if tool_payload and config.tool_policy == "agent" and not synthesis_payload:
+        synthesis_payload = {
+            "final_answer": str(tool_payload.get("final_answer", "")),
+            "concise_solution": (
+                "Agent selected a calculation tool before seeing the result; "
+                "using that requested tool observation after later tree/model stages did not complete. "
+                + str(tool_payload.get("concise_solution", ""))
+            ).strip(),
+        }
+        synthesis_source = "agent_requested_tool_fallback"
     if branch_notes and not synthesis_payload and not tool_notes:
         synthesis_payload = fallback_payload_from_notes(branch_notes)
         synthesis_source = "branch_notes"
