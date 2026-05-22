@@ -60,7 +60,7 @@ button {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 380px) minmax(480px, 1fr) minmax(320px, 420px);
+  grid-template-columns: minmax(320px, 350px) minmax(640px, 1.55fr) minmax(280px, 360px);
   gap: 16px;
   align-items: stretch;
   min-height: var(--workspace-panel-height);
@@ -448,12 +448,21 @@ button {
   min-height: 88px;
 }
 
+#problemPromptInput {
+  min-height: 148px;
+}
+
 .button-grid {
   display: grid;
   gap: 8px;
 }
 
 .button-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.button-grid.session-actions {
+  margin-top: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -553,7 +562,7 @@ button {
 
 .results-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(420px, 1.45fr) minmax(240px, 0.85fr);
   gap: 10px;
   min-height: 190px;
 }
@@ -567,7 +576,7 @@ button {
 
 .result-card {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   min-height: 190px;
   padding: 12px;
@@ -590,10 +599,37 @@ button {
   border-left: 3px solid var(--accent-strong);
 }
 
+.best-result-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+
 .result-card-score {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 8px 10px;
+  border: 1px solid rgba(246, 255, 171, 0.18);
+  background: rgba(38, 63, 28, 0.3);
   color: var(--accent-strong);
   font-size: 32px;
   line-height: 1;
+}
+
+.result-card-section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.result-card-label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .result-card-meta,
@@ -618,10 +654,10 @@ button {
 
 .result-card-formula {
   min-height: 72px;
-  max-height: 180px;
+  max-height: 220px;
   overflow: auto;
   padding: 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .candidate-formula {
@@ -636,6 +672,16 @@ button {
   color: var(--text);
   line-height: 1.45;
   overflow-wrap: break-word;
+}
+
+.result-card-thought {
+  display: block;
+  min-width: 0;
+  max-height: 120px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(171, 250, 183, 0.12);
+  background: rgba(12, 21, 14, 0.72);
 }
 
 .candidate-results-wrap {
@@ -1087,7 +1133,7 @@ button {
 
 @media (max-width: 1400px) {
   .workspace-grid {
-    grid-template-columns: minmax(300px, 360px) minmax(420px, 1fr);
+    grid-template-columns: minmax(300px, 340px) minmax(560px, 1.45fr);
     min-height: auto;
   }
 
@@ -1120,10 +1166,6 @@ button {
     margin-left: 0;
   }
 
-  .results-grid {
-    grid-template-columns: 1fr;
-  }
-
   .candidate-results {
     max-height: 220px;
   }
@@ -1152,6 +1194,10 @@ button {
 
   .tree-line-root .tree-line-chips {
     margin-left: 0;
+  }
+
+  .results-grid {
+    grid-template-columns: 1fr;
   }
 
   .detail-facts,

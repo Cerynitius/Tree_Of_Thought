@@ -69,6 +69,21 @@ class SlowPreparingBackendAdapter(DeterministicContextBackendAdapter):
         return prepared
 
 
+class SlowProgressBackendAdapter(DeterministicContextBackendAdapter):
+    name = "slow-progress-backend"
+
+    def propose(self, request: ProposalRequest) -> dict[str, object]:
+        time.sleep(0.12)
+        return super().propose(request)
+
+    def evaluate(self, request: EvaluationRequest) -> dict[str, object]:
+        time.sleep(0.12)
+        return super().evaluate(request)
+
+    def reflect(self, request: ReflectionRequest) -> dict[str, object]:
+        return super().reflect(request)
+
+
 class NoOpDeletionReviewAdapter(NodeDeletionReviewAdapter):
     name = "noop-delete-review"
 
@@ -95,6 +110,13 @@ def preparing_adapter_bundle(_config: ChatBackendConfig):
 def slow_preparing_adapter_bundle(_config: ChatBackendConfig):
     def backend_factory(problem_context: dict[str, object]):
         return SlowPreparingBackendAdapter(problem_context)
+
+    return backend_factory, ApproveDeleteReviewAdapter()
+
+
+def slow_progress_adapter_bundle(_config: ChatBackendConfig):
+    def backend_factory(problem_context: dict[str, object]):
+        return SlowProgressBackendAdapter(problem_context)
 
     return backend_factory, ApproveDeleteReviewAdapter()
 
@@ -612,3 +634,62 @@ class ToTAPITests(unittest.TestCase):
         state = poll.json()["state"]
         self.assertEqual(state["run_state"]["status"], "busy")
         self.assertEqual(state["run_state"]["phase"], "preparing-meta-task")
+
+    def test_background_run_publishes_child_progress_before_completion(self) -> None:
+        client = TestClient(
+            create_app(
+                session_store=SchedulerSessionStore(),
+                adapter_bundle_factory=slow_progress_adapter_bundle,
+            )
+        )
+
+        response = client.post(
+            "/api/tot/sessions",
+            json={
+                "run_on_create": True,
+                "problem_context": {
+                    "proposal": {"equations": ["root_eq"]},
+                    "calculation": {
+                        "skill_params": {"required_equation_patterns": ["root_eq"]}
+                    },
+                    "evaluation": {"score": 8.0},
+                    "children": [
+                        {
+                            "proposal": {"equations": ["child_eq_1"]},
+                            "calculation": {
+                                "skill_params": {"required_equation_patterns": ["child_eq_1"]}
+                            },
+                            "evaluation": {"score": 8.0},
+                        },
+                        {
+                            "proposal": {"equations": ["child_eq_2"]},
+                            "calculation": {
+                                "skill_params": {"required_equation_patterns": ["child_eq_2"]}
+                            },
+                            "evaluation": {"score": 8.0},
+                        },
+                    ],
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        session_id = response.json()["session_id"]
+
+        saw_child_while_busy = False
+        final_state = None
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            final_state = client.get(f"/api/tot/sessions/{session_id}").json()["state"]
+            root = final_state.get("root") or {}
+            children = root.get("children") or []
+            if final_state["run_state"]["status"] == "busy" and len(children) >= 1:
+                saw_child_while_busy = True
+            if final_state["run_state"]["status"] != "busy" and len(children) == 2:
+                break
+            time.sleep(0.02)
+
+        self.assertTrue(saw_child_while_busy)
+        self.assertIsNotNone(final_state)
+        self.assertEqual(final_state["run_state"]["status"], "ready")
+        self.assertEqual(len(final_state["root"]["children"]), 2)

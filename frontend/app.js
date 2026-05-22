@@ -83,7 +83,7 @@ const uiState = {
   statusTone: "idle",
   lastUpdatedAt: null,
   lastActionTitle: "No request yet.",
-  lastActionDetail: "Use Create Session to start a new run or Load Session State to reconnect to an existing session.",
+  lastActionDetail: "Use Create & Run to start a new session or Load Session to reconnect to an existing one.",
   lastActionTone: "idle",
   statusLogEntries: [],
   statusLogSequence: 0,
@@ -100,9 +100,8 @@ const dom = {
   attachSessionButton: document.getElementById("attachSessionButton"),
   createSessionButton: document.getElementById("createSessionButton"),
   refreshSessionButton: document.getElementById("refreshSessionButton"),
-  runSessionButton: document.getElementById("runSessionButton"),
+  exportAnswerButton: document.getElementById("exportAnswerButton"),
   dropSessionButton: document.getElementById("dropSessionButton"),
-  runOnCreateToggle: document.getElementById("runOnCreateToggle"),
   searchInput: document.getElementById("searchInput"),
   prevMatchButton: document.getElementById("prevMatchButton"),
   nextMatchButton: document.getElementById("nextMatchButton"),
@@ -128,6 +127,7 @@ const dom = {
   schedulerConfigInput: document.getElementById("schedulerConfigInput"),
   treeStats: document.getElementById("treeStats"),
   selectionStats: document.getElementById("selectionStats"),
+  resultsPanel: document.getElementById("resultsPanel"),
   resultSummary: document.getElementById("resultSummary"),
   bestResultCard: document.getElementById("bestResultCard"),
   bestResultScore: document.getElementById("bestResultScore"),
@@ -153,7 +153,7 @@ async function boot() {
   wireEvents();
   pushStatusLog(
     "UI ready.",
-    "No session attached yet. Create a session or load an existing session state to begin.",
+    "No session attached yet. Use Create & Run or Load Session to begin.",
     "idle",
   );
   render();
@@ -336,9 +336,6 @@ function restoreDraft() {
   );
   dom.pollIntervalInput.value = String(restoredPollInterval);
 
-  if (typeof stored.runOnCreate === "boolean") {
-    dom.runOnCreateToggle.checked = stored.runOnCreate;
-  }
   if (typeof stored.pollingEnabled === "boolean") {
     dom.pollingToggle.checked = stored.pollingEnabled;
   }
@@ -379,7 +376,6 @@ function persistDraft() {
     deleteReason: dom.deleteReasonInput.value,
     steerPrompt: dom.steerPromptInput.value,
     searchQuery: dom.searchInput.value,
-    runOnCreate: dom.runOnCreateToggle.checked,
     pollingEnabled: dom.pollingToggle.checked,
     pollIntervalMs: dom.pollIntervalInput.value.trim(),
   };
@@ -426,8 +422,8 @@ function wireEvents() {
   dom.refreshSessionButton.addEventListener("click", () => {
     runUiAction(() => refreshSession());
   });
-  dom.runSessionButton.addEventListener("click", () => {
-    runUiAction(() => runSession());
+  dom.exportAnswerButton.addEventListener("click", () => {
+    exportCurrentAnswer();
   });
   dom.dropSessionButton.addEventListener("click", () => {
     runUiAction(() => dropSession());
@@ -514,7 +510,6 @@ function wireEvents() {
     dom.allowLiveModelFallbackToggle,
     dom.preferLocalFallbackToggle,
     dom.deleteReasonInput,
-    dom.runOnCreateToggle,
   ].filter(Boolean).forEach((element) => {
     const eventName = element instanceof HTMLInputElement && element.type === "checkbox" ? "change" : "input";
     element.addEventListener(eventName, persistDraft);
@@ -1220,7 +1215,7 @@ function renderButtons() {
     dom.attachSessionButton,
     dom.createSessionButton,
     dom.refreshSessionButton,
-    dom.runSessionButton,
+    dom.exportAnswerButton,
     dom.dropSessionButton,
     dom.prevMatchButton,
     dom.nextMatchButton,
@@ -1233,8 +1228,10 @@ function renderButtons() {
   });
 
   dom.refreshSessionButton.disabled = uiState.requestInFlight || !hasSession;
-  dom.runSessionButton.disabled = uiState.requestInFlight || !hasSession || sessionBusy;
   dom.dropSessionButton.disabled = uiState.requestInFlight || !hasSession;
+  const resultsBoard = buildResultsBoard(uiState.treeModel);
+  dom.exportAnswerButton.disabled =
+    uiState.requestInFlight || !shouldShowResultsBoard(uiState.snapshot, resultsBoard);
   dom.expandAllButton.disabled = !uiState.snapshot;
   dom.collapseAllButton.disabled = !uiState.snapshot;
   dom.prevMatchButton.disabled = uiState.searchMatches.length === 0;
@@ -1300,8 +1297,29 @@ function renderMeta() {
   }
 }
 
+function shouldShowResultsBoard(snapshot, board) {
+  if (!uiState.sessionId || !snapshot || !board || !board.best) {
+    return false;
+  }
+  if (uiState.requestInFlight || uiState.busyRefreshTimer) {
+    return false;
+  }
+  if (isSessionBusy(snapshot)) {
+    return false;
+  }
+  return !uiState.pollingEnabled;
+}
+
 function renderResultsBoard() {
   const board = buildResultsBoard(uiState.treeModel);
+  const showResultsBoard = shouldShowResultsBoard(uiState.snapshot, board);
+  if (dom.resultsPanel) {
+    dom.resultsPanel.hidden = !showResultsBoard;
+  }
+  if (!showResultsBoard) {
+    return;
+  }
+
   const runState = getRunState(uiState.snapshot);
   const phase = String(runState.phase || "created").trim();
   const runLabel = isSessionBusy(uiState.snapshot)
@@ -2094,7 +2112,7 @@ async function createSession() {
   }
 
   const payload = buildCreateSessionPayload();
-  await withRequest("Creating live session...", async () => {
+  await withRequest("Creating session and starting run...", async () => {
     const response = await apiRequest("/api/tot/sessions", {
       method: "POST",
       body: payload,
@@ -2142,14 +2160,22 @@ async function refreshSession(options = {}) {
     const previousSnapshot = uiState.snapshot;
     const response = await apiRequest(`/api/tot/sessions/${encodeURIComponent(uiState.sessionId)}`);
     const refreshSummary = summarizeSessionAction("refresh", previousSnapshot, response.state);
-    const preserveSilentFeedback = Boolean(
-      options.silent
-      && !isSessionBusy(response.state)
+    const hasStableIdleSnapshot = Boolean(
+      !isSessionBusy(response.state)
       && !hasVisibleMetricsChange(
         getSnapshotMetrics(previousSnapshot),
         getSnapshotMetrics(response.state)
       )
     );
+    const preserveSilentFeedback = Boolean(
+      options.silent
+      && hasStableIdleSnapshot
+    );
+    if (options.silent && hasStableIdleSnapshot && uiState.pollingEnabled) {
+      uiState.pollingEnabled = false;
+      dom.pollingToggle.checked = false;
+      restartPolling();
+    }
     applySessionState(
       response.session_id,
       response.state,
@@ -2343,7 +2369,7 @@ function buildCreateSessionPayload() {
     },
     backend,
     scheduler,
-    run_on_create: dom.runOnCreateToggle.checked,
+    run_on_create: true,
   };
 }
 
@@ -2569,6 +2595,53 @@ function runUiAction(action) {
       handleError(error);
       render();
     });
+}
+
+function exportCurrentAnswer() {
+  const board = buildResultsBoard(uiState.treeModel);
+  if (!shouldShowResultsBoard(uiState.snapshot, board) || !board.best) {
+    setStatus("No final answer is ready to export yet.", "error");
+    return;
+  }
+
+  const best = board.best;
+  const safeSessionId = (uiState.sessionId || "session")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "") || "session";
+  const fileName = `${safeSessionId}-final-answer.txt`;
+  const fileText = [
+    "ToT Final Answer Export",
+    `Session: ${uiState.sessionId || "n/a"}`,
+    `Node: ${best.node.id}`,
+    `Score: ${formatScore(best.node.score)}`,
+    `Summary: ${dom.resultSummary.textContent || ""}`,
+    "",
+    "Final Answer",
+    buildNodeAnswerText(best.node, { maxLength: 20_000 }),
+    "",
+    "Winning Branch",
+    summarizeResultThought(best.node),
+    "",
+    "Metadata",
+    buildResultMeta(best),
+  ].join("\n");
+
+  const blob = new Blob([fileText], { type: "text/plain;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+
+  setStatus("Final answer exported.", "ok");
+  setActionFeedback(
+    "Answer exported.",
+    `Downloaded ${fileName} from ${best.node.id}.`,
+    "ok",
+  );
 }
 
 function summarizeRunAction(previousSnapshot, nextSnapshot) {
