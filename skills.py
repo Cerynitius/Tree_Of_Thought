@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
@@ -4977,6 +4978,169 @@ def benchmark_physics_solver(params: Dict[str, Any]) -> Dict[str, Any]:
             raise ValueError("No positive real static-instability root found.")
         return _final(sp.nsimplify(positive_roots[0]), str(params.get("unit", "")))
 
+    if operation == "linear_solve_component":
+        matrix = sp.Matrix(params["coefficient_matrix"])
+        rhs_vector = sp.Matrix(params["rhs_vector"])
+        component_index = int(params.get("component_index", 0))
+        solution = matrix.LUsolve(rhs_vector)
+        if component_index < 0 or component_index >= len(solution):
+            raise ValueError("component_index is outside the linear-system solution vector.")
+        return _final(solution[component_index], str(params.get("unit", "")))
+
+    if operation == "lowest_generalized_frequency":
+        stiffness_matrix = sp.Matrix(params["stiffness_matrix"])
+        mass_matrix = sp.Matrix(params["mass_matrix"])
+        eigenvalue = sp.Symbol(str(params.get("eigenvalue_symbol", "lambda")))
+        characteristic = sp.factor((stiffness_matrix - eigenvalue * mass_matrix).det())
+        roots = sp.nroots(characteristic)
+        tolerance = float(params.get("imag_tol", 1e-8))
+        positive_roots = sorted(
+            float(sp.re(root))
+            for root in roots
+            if abs(float(sp.im(root))) <= tolerance and float(sp.re(root)) > 0
+        )
+        if not positive_roots:
+            raise ValueError("No positive generalized-frequency eigenvalue found.")
+        return _final(sp.N(sp.sqrt(positive_roots[0]), 15), str(params.get("unit", "")))
+
+    if operation == "magnetized_cylinder_axis_field":
+        mu0_magnetization = sp.sympify(params["mu0_magnetization"])
+        radius = sp.sympify(params["radius"])
+        length = sp.sympify(params["length"])
+        axial_position = sp.sympify(params["axial_position"])
+        upper_offset = axial_position + length / 2
+        lower_offset = axial_position - length / 2
+        field = mu0_magnetization / 2 * (
+            upper_offset / sp.sqrt(radius**2 + upper_offset**2)
+            - lower_offset / sp.sqrt(radius**2 + lower_offset**2)
+        )
+        return _final(sp.N(field, 15), str(params.get("unit", "")))
+
+    if operation == "matrix_product_half_trace":
+        matrices = [sp.Matrix(item) for item in params["matrices"]]
+        if not matrices:
+            raise ValueError("matrix_product_half_trace requires at least one matrix.")
+        product = sp.eye(matrices[0].rows)
+        for matrix in matrices:
+            product = matrix * product
+        return _final(sp.trace(product) / 2, str(params.get("unit", "")))
+
+    if operation == "relativistic_threshold_kinetic_energy":
+        projectile_mass = sp.sympify(params["projectile_mass"])
+        target_mass = sp.sympify(params["target_mass"])
+        final_masses = [sp.sympify(item) for item in params["final_masses"]]
+        final_rest_mass = sum(final_masses, sp.Integer(0))
+        projectile_total_energy = (
+            final_rest_mass**2 - projectile_mass**2 - target_mass**2
+        ) / (2 * target_mass)
+        threshold_kinetic_energy = projectile_total_energy - projectile_mass
+        return _final(sp.N(threshold_kinetic_energy, 15), str(params.get("unit", "")))
+
+    if operation == "rough_pipe_pressure_drop":
+        density = float(params["density"])
+        viscosity = float(params["dynamic_viscosity"])
+        diameter = float(params["diameter"])
+        length = float(params["length"])
+        roughness = float(params["roughness"])
+        flow_rate = float(params["flow_rate"])
+        velocity = flow_rate / (math.pi * diameter**2 / 4)
+        reynolds = density * velocity * diameter / viscosity
+        relative_roughness = roughness / diameter
+
+        def colebrook_residual(friction_factor: float) -> float:
+            return 1 / math.sqrt(friction_factor) + 2 * math.log10(
+                relative_roughness / 3.7
+                + 2.51 / (reynolds * math.sqrt(friction_factor))
+            )
+
+        low = 0.008
+        high = 0.12
+        for _ in range(100):
+            midpoint = (low + high) / 2
+            if colebrook_residual(low) * colebrook_residual(midpoint) <= 0:
+                high = midpoint
+            else:
+                low = midpoint
+        friction_factor = (low + high) / 2
+        pressure_drop = friction_factor * (length / diameter) * density * velocity**2 / 2
+        return {
+            "final_answer": f"{friction_factor:.12g} friction factor, {pressure_drop:.12g} Pa",
+            "concise_solution": f"benchmark_physics_solver:{operation}",
+            "raw_value": f"friction_factor={friction_factor}; pressure_drop={pressure_drop}; Re={reynolds}",
+        }
+
+    if operation == "isentropic_nozzle_supersonic":
+        gamma = float(params.get("gamma", 1.4))
+        area_ratio = float(params["area_ratio"])
+
+        def area_mach(mach: float) -> float:
+            term = 2 / (gamma + 1) * (1 + (gamma - 1) * mach**2 / 2)
+            exponent = (gamma + 1) / (2 * (gamma - 1))
+            return term**exponent / mach
+
+        low = 1.000001
+        high = 20.0
+        for _ in range(120):
+            midpoint = (low + high) / 2
+            if area_mach(midpoint) < area_ratio:
+                low = midpoint
+            else:
+                high = midpoint
+        mach = (low + high) / 2
+        pressure_ratio = (1 + (gamma - 1) * mach**2 / 2) ** (-gamma / (gamma - 1))
+        return {
+            "final_answer": f"{mach:.12g} Mach, {pressure_ratio:.12g} pressure ratio",
+            "concise_solution": f"benchmark_physics_solver:{operation}",
+            "raw_value": f"Mach={mach}; pressure_ratio={pressure_ratio}",
+        }
+
+    if operation == "hydraulic_jump_rectangular":
+        upstream_depth = float(params["upstream_depth"])
+        upstream_velocity = float(params["upstream_velocity"])
+        gravity = float(params.get("gravity", 9.81))
+        froude = upstream_velocity / math.sqrt(gravity * upstream_depth)
+        downstream_depth = upstream_depth / 2 * (math.sqrt(1 + 8 * froude**2) - 1)
+        energy_loss = (downstream_depth - upstream_depth) ** 3 / (
+            4 * upstream_depth * downstream_depth
+        )
+        return {
+            "final_answer": f"{downstream_depth:.12g} m, {energy_loss:.12g} m energy loss",
+            "concise_solution": f"benchmark_physics_solver:{operation}",
+            "raw_value": f"Fr1={froude}; y2={downstream_depth}; energy_loss={energy_loss}",
+        }
+
+    if operation == "laminar_flat_plate_drag":
+        density = float(params["density"])
+        viscosity = float(params["dynamic_viscosity"])
+        velocity = float(params["velocity"])
+        length = float(params["length"])
+        width = float(params["width"])
+        reynolds_length = density * velocity * length / viscosity
+        average_friction_coefficient = 1.328 / math.sqrt(reynolds_length)
+        drag = 0.5 * density * velocity**2 * length * width * average_friction_coefficient
+        return {
+            "final_answer": f"{average_friction_coefficient:.12g} average Cf, {drag:.12g} N",
+            "concise_solution": f"benchmark_physics_solver:{operation}",
+            "raw_value": f"Re_L={reynolds_length}; Cf={average_friction_coefficient}; drag={drag}",
+        }
+
+    if operation == "capillary_gravity_phase_speed":
+        density = float(params["density"])
+        surface_tension = float(params["surface_tension"])
+        depth = float(params["depth"])
+        wavelength = float(params["wavelength"])
+        gravity = float(params.get("gravity", 9.81))
+        wave_number = 2 * math.pi / wavelength
+        angular_frequency_squared = (
+            gravity * wave_number + surface_tension / density * wave_number**3
+        ) * math.tanh(wave_number * depth)
+        phase_speed = math.sqrt(angular_frequency_squared) / wave_number
+        return {
+            "final_answer": f"{phase_speed:.12g} m/s",
+            "concise_solution": f"benchmark_physics_solver:{operation}",
+            "raw_value": f"k={wave_number}; phase_speed={phase_speed}",
+        }
+
     raise ValueError(f"Unsupported benchmark_physics_solver operation: {operation}")
 
 
@@ -5550,6 +5714,208 @@ DIRECT_9B_BENCHMARK_DATA: Dict[str, Any] = {
                     }
                 ],
             },
+            {
+                "case_id": "physics_thermal_network_hotspot",
+                "topic": "physics_steady_thermal_network",
+                "prompt": "A five-node anisotropic thermal test plate is reduced to the steady balance A*T=q, where T is the vector of node temperature rises in K above ambient. A=[[12,-2,-1,0,-3],[-2,15,-4,-1,0],[-1,-4,14,-2,-1],[0,-1,-2,11,-3],[-3,0,-1,-3,13]] W/K and q=[480,310,275,190,360] W. Find the temperature rise of node 4 only, in K.",
+                "expected_values": [{"label": "node4_temperature_rise_K", "value": 45.6632169667, "abs_tol": 0.03, "rel_tol": 0.0}],
+                "reference_answer": "Solving A*T=q gives T4=626545/13721=45.6632169667 K.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "linear_solve_component",
+                            "coefficient_matrix": [[12, -2, -1, 0, -3], [-2, 15, -4, -1, 0], [-1, -4, 14, -2, -1], [0, -1, -2, 11, -3], [-3, 0, -1, -3, 13]],
+                            "rhs_vector": [480, 310, 275, 190, 360],
+                            "component_index": 3,
+                            "unit": "K",
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "physics_coupled_resonator_lowest_frequency",
+                "topic": "physics_generalized_vibration_modes",
+                "prompt": "A four-degree-of-freedom coupled resonator has stiffness matrix K=[[120,-35,10,0],[-35,95,-20,15],[10,-20,80,-25],[0,15,-25,70]] N/m and diagonal mass matrix M=diag(3,2,4,5) kg. Natural frequencies satisfy det(K-omega^2*M)=0. Find the lowest positive angular frequency omega in rad/s.",
+                "expected_values": [{"label": "lowest_angular_frequency_rad_s", "value": 3.24563758566, "abs_tol": 0.01, "rel_tol": 0.0}],
+                "reference_answer": "The smallest positive generalized eigenvalue is omega^2=10.5341633375, so omega=3.24563758566 rad/s.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "lowest_generalized_frequency",
+                            "stiffness_matrix": [[120, -35, 10, 0], [-35, 95, -20, 15], [10, -20, 80, -25], [0, 15, -25, 70]],
+                            "mass_matrix": [[3, 0, 0, 0], [0, 2, 0, 0], [0, 0, 4, 0], [0, 0, 0, 5]],
+                            "unit": "rad/s",
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "physics_magnetized_cylinder_axis_field",
+                "topic": "physics_magnetostatics_finite_magnet",
+                "prompt": "A uniformly magnetized finite cylinder has radius 0.9 m, length 2.4 m, and mu0*M=0.8 T. On the symmetry axis outside the magnet, at z=3.7 m from the cylinder center, compute the axial magnetic flux density Bz in T using the finite-cylinder pole-face expression, not a point-dipole approximation.",
+                "expected_values": [{"label": "axis_field_T", "value": 0.0170639017453, "abs_tol": 0.0002, "rel_tol": 0.0}],
+                "reference_answer": "Bz=0.8/2*((3.7+1.2)/sqrt(0.9^2+4.9^2)-(3.7-1.2)/sqrt(0.9^2+2.5^2))=0.0170639017453 T.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "magnetized_cylinder_axis_field",
+                            "mu0_magnetization": "0.8",
+                            "radius": "0.9",
+                            "length": "2.4",
+                            "axial_position": "3.7",
+                            "unit": "T",
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "physics_beamline_half_trace_stability",
+                "topic": "physics_transfer_matrix_stability",
+                "prompt": "A paraxial beamline cell is modeled by the ordered product of transfer matrices D(0.7), Q(-0.3), D(1.1), Q(0.2), D(0.8), where D(L)=[[1,L],[0,1]] and Q(k)=[[1,0],[k,1]]. Multiplying in the order listed, compute one half of the trace of the full one-cell transfer matrix. This value determines linear stability; return only trace(Mcell)/2.",
+                "expected_values": [{"label": "half_trace", "value": 0.8205, "abs_tol": 0.0005, "rel_tol": 0.0}],
+                "reference_answer": "The ordered matrix product gives trace(Mcell)/2=1641/2000=0.8205.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "matrix_product_half_trace",
+                            "matrices": [[[1, "7/10"], [0, 1]], [[1, 0], ["-3/10", 1]], [[1, "11/10"], [0, 1]], [[1, 0], ["1/5", 1]], [[1, "4/5"], [0, 1]]],
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "physics_relativistic_multi_pion_threshold",
+                "topic": "physics_relativistic_threshold_energy",
+                "prompt": "A proton beam strikes a stationary proton target. Find the threshold kinetic energy of the beam proton, in MeV, for the reaction p+p -> p+p+pi0+pi+ + pi-. Use rest masses mp=938.272 MeV/c^2, mpi0=134.977 MeV/c^2, and mpi_charged=139.570 MeV/c^2. Use invariant threshold kinematics, not a nonrelativistic estimate.",
+                "expected_values": [{"label": "threshold_kinetic_energy_MeV", "value": 919.621619842, "abs_tol": 0.5, "rel_tol": 0.0}],
+                "reference_answer": "At threshold sqrt(s)=2*mp+mpi0+2*mpi_charged, so K=((sum_m)^2-mp^2-mp^2)/(2*mp)-mp=919.621619842 MeV.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "relativistic_threshold_kinetic_energy",
+                            "projectile_mass": "938.272",
+                            "target_mass": "938.272",
+                            "final_masses": ["938.272", "938.272", "134.977", "139.570", "139.570"],
+                            "unit": "MeV",
+                        },
+                    }
+                ],
+            },
+        ],
+        "fluid_tool": [
+            {
+                "case_id": "fluid_rough_pipe_colebrook_drop",
+                "topic": "fluid_turbulent_pipe_friction",
+                "prompt": "Water at rho=998 kg/m^3 and dynamic viscosity 1.002e-3 Pa*s flows through an 85 m long commercial pipe of diameter 0.12 m and absolute roughness 0.00015 m. The volume flow rate is 0.018 m^3/s. Using the Colebrook-White equation for the Darcy friction factor, compute the Darcy friction factor and the pressure drop in Pa. Do not use a smooth-pipe approximation.",
+                "expected_values": [
+                    {"label": "darcy_friction_factor", "value": 0.022015544236, "abs_tol": 0.0002, "rel_tol": 0.0},
+                    {"label": "pressure_drop_Pa", "value": 19710.9662578, "abs_tol": 80.0, "rel_tol": 0.0},
+                ],
+                "reference_answer": "Colebrook-White gives f=0.022015544236 and Delta p=f*(L/D)*rho*V^2/2=19710.9662578 Pa.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "rough_pipe_pressure_drop",
+                            "density": 998,
+                            "dynamic_viscosity": 0.001002,
+                            "diameter": 0.12,
+                            "length": 85,
+                            "roughness": 0.00015,
+                            "flow_rate": 0.018,
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "fluid_supersonic_nozzle_area_mach",
+                "topic": "fluid_compressible_nozzle_flow",
+                "prompt": "Air expands isentropically in a converging-diverging nozzle with gamma=1.4. At a station in the diverging section, A/A*=2.8 and the flow is on the supersonic branch. Compute the local Mach number and the static-to-stagnation pressure ratio p/p0.",
+                "expected_values": [
+                    {"label": "mach_number", "value": 2.56416809718, "abs_tol": 0.01, "rel_tol": 0.0},
+                    {"label": "pressure_ratio", "value": 0.0529757394832, "abs_tol": 0.001, "rel_tol": 0.0},
+                ],
+                "reference_answer": "Solving the area-Mach relation on the supersonic branch gives M=2.56416809718 and p/p0=0.0529757394832.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "isentropic_nozzle_supersonic",
+                            "gamma": 1.4,
+                            "area_ratio": 2.8,
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "fluid_rectangular_hydraulic_jump",
+                "topic": "fluid_open_channel_jump",
+                "prompt": "A rectangular channel has upstream depth y1=0.45 m and upstream mean velocity V1=7.2 m/s just before a hydraulic jump. Use g=9.81 m/s^2. Compute the sequent downstream depth y2 and the specific energy loss across the jump, both in meters.",
+                "expected_values": [
+                    {"label": "downstream_depth_m", "value": 1.96739328195, "abs_tol": 0.02, "rel_tol": 0.0},
+                    {"label": "energy_loss_m", "value": 0.986576534576, "abs_tol": 0.02, "rel_tol": 0.0},
+                ],
+                "reference_answer": "Fr1=3.426823495, y2=y1/2*(sqrt(1+8*Fr1^2)-1)=1.96739328195 m, and energy loss=(y2-y1)^3/(4*y1*y2)=0.986576534576 m.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "hydraulic_jump_rectangular",
+                            "upstream_depth": 0.45,
+                            "upstream_velocity": 7.2,
+                            "gravity": 9.81,
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "fluid_laminar_flat_plate_drag",
+                "topic": "fluid_boundary_layer_drag",
+                "prompt": "Air with rho=1.20 kg/m^3 and dynamic viscosity 1.8e-5 Pa*s flows at 22 m/s over a smooth flat plate of length 1.5 m and width 0.8 m. Assuming the boundary layer remains laminar over the full plate, compute the average skin-friction coefficient and the one-sided drag force in N.",
+                "expected_values": [
+                    {"label": "average_skin_friction_coefficient", "value": 0.000895337417351, "abs_tol": 0.00002, "rel_tol": 0.0},
+                    {"label": "drag_force_N", "value": 0.312007183199, "abs_tol": 0.02, "rel_tol": 0.0},
+                ],
+                "reference_answer": "Re_L=2.2e6, Cf_avg=1.328/sqrt(Re_L)=0.000895337417351, and D=0.5*rho*U^2*L*b*Cf_avg=0.312007183199 N.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "laminar_flat_plate_drag",
+                            "density": 1.20,
+                            "dynamic_viscosity": 0.000018,
+                            "velocity": 22,
+                            "length": 1.5,
+                            "width": 0.8,
+                        },
+                    }
+                ],
+            },
+            {
+                "case_id": "fluid_capillary_gravity_wave_speed",
+                "topic": "fluid_surface_wave_dispersion",
+                "prompt": "A water surface wave has wavelength 0.045 m in water depth 0.18 m. Use rho=1000 kg/m^3, surface tension sigma=0.072 N/m, and g=9.81 m/s^2. Using the capillary-gravity dispersion relation omega^2=(g*k+sigma*k^3/rho)*tanh(k*h), compute the phase speed in m/s.",
+                "expected_values": [{"label": "phase_speed_m_s", "value": 0.283393800425, "abs_tol": 0.003, "rel_tol": 0.0}],
+                "reference_answer": "k=2*pi/0.045 and c=omega/k=0.283393800425 m/s.",
+                "tool_invocations": [
+                    {
+                        "skill_name": "benchmark_physics_solver",
+                        "payload": {
+                            "operation": "capillary_gravity_phase_speed",
+                            "density": 1000,
+                            "surface_tension": 0.072,
+                            "depth": 0.18,
+                            "wavelength": 0.045,
+                            "gravity": 9.81,
+                        },
+                    }
+                ],
+            },
         ],
     },
 }
@@ -5581,6 +5947,7 @@ def direct_9b_benchmark_payload(params: Dict[str, Any]) -> Dict[str, Any]:
     boundary_cases = [_copy_direct_9b_case(item) for item in base_cases["boundary"]]
     symbolic_tool_cases = [_copy_direct_9b_case(item) for item in base_cases["symbolic_tool"]]
     physics_tool_cases = [_copy_direct_9b_case(item) for item in base_cases["physics_tool"]]
+    fluid_tool_cases = [_copy_direct_9b_case(item) for item in base_cases["fluid_tool"]]
     suites = {
         "ap1": [_copy_direct_9b_case(item) for item in base_cases["ap1"]],
         "em": em_cases,
@@ -5592,6 +5959,7 @@ def direct_9b_benchmark_payload(params: Dict[str, Any]) -> Dict[str, Any]:
         "boundary": boundary_cases,
         "symbolic_tool": symbolic_tool_cases,
         "physics_tool": physics_tool_cases,
+        "fluid_tool": fluid_tool_cases,
     }
     return {
         "default_suite": DIRECT_9B_BENCHMARK_DATA["default_suite"],

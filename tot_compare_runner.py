@@ -18,6 +18,8 @@ from direct_9b_benchmark import (
     SUITES,
     BenchmarkCase,
     call_local_model,
+    extract_json_object,
+    extract_response_text,
     normalize_chat_response,
     score_case,
 )
@@ -39,6 +41,7 @@ class ToTConfig:
     synthesis_nodes: int
     tree_wall_timeout: float
     synthesis_wall_timeout: float
+    tool_policy: str
 
 
 @contextmanager
@@ -118,12 +121,25 @@ def fallback_payload_from_notes(notes: list[str]) -> dict[str, Any]:
     }
 
 
-def run_case_tool_invocations(case: BenchmarkCase) -> tuple[dict[str, Any], list[str], float, str]:
-    invocations = [
+def case_tool_invocations(case: BenchmarkCase) -> list[dict[str, Any]]:
+    return [
         dict(item)
         for item in getattr(case, "tool_invocations", ())
         if isinstance(item, dict) and str(item.get("skill_name", "")).strip()
     ]
+
+
+def run_case_tool_invocations(
+    case: BenchmarkCase,
+    selected_indices: Iterable[int] | None = None,
+) -> tuple[dict[str, Any], list[str], float, str]:
+    invocations = [
+        (index, dict(item))
+        for index, item in enumerate(case_tool_invocations(case), 1)
+    ]
+    if selected_indices is not None:
+        selected = {int(index) for index in selected_indices}
+        invocations = [(index, item) for index, item in invocations if index in selected]
     if not invocations:
         return {}, [], 0.0, ""
 
@@ -135,7 +151,7 @@ def run_case_tool_invocations(case: BenchmarkCase) -> tuple[dict[str, Any], list
     started_at = time.perf_counter()
     notes: list[str] = []
     answers: list[str] = []
-    for index, invocation in enumerate(invocations, 1):
+    for index, invocation in invocations:
         skill_name = str(invocation.get("skill_name", "")).strip()
         payload = invocation.get("payload", {})
         if not isinstance(payload, dict):
@@ -168,6 +184,72 @@ def run_case_tool_invocations(case: BenchmarkCase) -> tuple[dict[str, Any], list
     }, notes, elapsed, ""
 
 
+def request_agent_tool_choice(case: BenchmarkCase, config: ToTConfig) -> tuple[list[int], float, str, str]:
+    invocations = case_tool_invocations(case)
+    if not invocations:
+        return [], 0.0, "", ""
+
+    tool_lines = []
+    for index, invocation in enumerate(invocations, 1):
+        tool_lines.append(
+            json.dumps(
+                {
+                    "tool_index": index,
+                    "skill_name": invocation.get("skill_name"),
+                    "payload": invocation.get("payload", {}),
+                },
+                ensure_ascii=False,
+            )
+        )
+    user_prompt = (
+        f"Problem id: {case.case_id}\n"
+        f"Topic: {case.topic}\n"
+        f"Problem: {case.prompt}\n\n"
+        "You are the agent tool router. Decide whether the agent should call one or more calculation tools. "
+        "The tool definitions below include callable names and arguments, but not results. "
+        "Use tools only when the calculation is likely to be error-prone or time-consuming by hand.\n"
+        + "\n".join(tool_lines)
+        + "\n\nReturn only JSON with keys use_tools, tool_indices, and reason. "
+        "tool_indices must be a list of integers from the available tool_index values."
+    )
+    payload = {
+        "model": config.model,
+        "system_prompt": "Return only valid JSON. Do not solve the problem; only choose tools.",
+        "input": user_prompt,
+    }
+    started_at = time.perf_counter()
+    try:
+        response = requests.post(config.api_url, json=payload, timeout=config.timeout)
+        latency = time.perf_counter() - started_at
+        response.raise_for_status()
+        try:
+            body: Any = response.json()
+        except ValueError:
+            body = response.text
+        raw_text = extract_response_text(body)
+        parsed = extract_json_object(raw_text) or {}
+    except Exception as exc:  # noqa: BLE001
+        return [], time.perf_counter() - started_at, f"tool_choice_error: {exc}", ""
+
+    use_tools = bool(parsed.get("use_tools"))
+    raw_indices = parsed.get("tool_indices", [])
+    if isinstance(raw_indices, int):
+        raw_indices = [raw_indices]
+    if not isinstance(raw_indices, list):
+        raw_indices = []
+    valid_indices = set(range(1, len(invocations) + 1))
+    selected_indices: list[int] = []
+    if use_tools:
+        for item in raw_indices:
+            try:
+                index = int(item)
+            except (TypeError, ValueError):
+                continue
+            if index in valid_indices and index not in selected_indices:
+                selected_indices.append(index)
+    return selected_indices, latency, "", raw_text
+
+
 def synthesize_answer(case: BenchmarkCase, notes: list[str], config: ToTConfig) -> tuple[dict[str, Any], float]:
     user_prompt = (
         f"Problem id: {case.case_id}\n"
@@ -196,8 +278,18 @@ def synthesize_answer(case: BenchmarkCase, notes: list[str], config: ToTConfig) 
 
 
 def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
-    tool_payload, tool_notes, tool_latency, tool_error = run_case_tool_invocations(case)
-    if tool_payload:
+    tool_payload: dict[str, Any] = {}
+    tool_notes: list[str] = []
+    tool_latency = 0.0
+    tool_error = ""
+    tool_choice_latency = 0.0
+    tool_choice_error = ""
+    tool_choice_raw = ""
+    selected_tool_indices: list[int] = []
+    if config.tool_policy == "oracle":
+        tool_payload, tool_notes, tool_latency, tool_error = run_case_tool_invocations(case)
+
+    if tool_payload and config.tool_policy == "oracle":
         scored = score_case(case, tool_payload)
         return {
             **scored,
@@ -205,12 +297,36 @@ def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
             "synthesis_latency_seconds": round(tool_latency, 3),
             "node_count": 0,
             "expansions_used": 0,
-            "run_phase": "tool_skill",
+            "run_phase": "oracle_tool_skill",
             "tree_error": "",
             "synthesis_error": tool_error,
-            "synthesis_source": "tool_skill",
+            "synthesis_source": "oracle_tool_skill",
+            "tool_policy": config.tool_policy,
+            "tool_participates": False,
+            "tool_choice_latency_seconds": 0.0,
+            "tool_choice_error": "",
+            "tool_choice_raw": "",
+            "selected_tool_indices": [],
+            "tool_latency_seconds": round(tool_latency, 3),
+            "tool_error": tool_error,
+            "tool_audit_latency_seconds": 0.0,
+            "tool_audit_error": "",
+            "tool_audit_final_answer": "",
+            "tool_audit_ok": False,
+            "tool_audit_notes": [],
             "branch_notes": tool_notes,
         }
+
+    if config.tool_policy == "agent":
+        selected_tool_indices, tool_choice_latency, tool_choice_error, tool_choice_raw = request_agent_tool_choice(
+            case,
+            config,
+        )
+        if selected_tool_indices:
+            tool_payload, tool_notes, tool_latency, tool_error = run_case_tool_invocations(
+                case,
+                selected_indices=selected_tool_indices,
+            )
 
     backend_factory, deletion_review = build_local_chat_adapter_bundle(
         base_url=config.api_url,
@@ -232,6 +348,10 @@ def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
         },
         "skill_query": case.topic,
     }
+    if tool_payload and config.tool_policy == "agent":
+        known_context = dict(problem_context["known_context"])
+        known_context["agent_requested_tool_observations"] = "\n".join(tool_notes)
+        problem_context["known_context"] = known_context
     scheduler = ToTTreeScheduler(
         problem_context,
         max_reflections=2,
@@ -252,23 +372,21 @@ def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
         error = f"tree_error: {exc}"
     tree_latency = time.perf_counter() - started_at
 
-    notes = [*tool_notes, *select_branch_notes(scheduler.root_node, config.synthesis_nodes)]
+    branch_notes = select_branch_notes(scheduler.root_node, config.synthesis_nodes)
+    synthesis_notes = [*tool_notes, *branch_notes] if config.tool_policy == "agent" else branch_notes
     synthesis_payload: dict[str, Any] = {}
-    synthesis_latency = round(tool_latency, 6) if tool_payload else 0.0
+    synthesis_latency = 0.0
     synthesis_error = tool_error
     synthesis_source = ""
-    if tool_payload:
-        synthesis_payload = tool_payload
-        synthesis_source = "tool_skill"
-    elif notes and not error:
+    if synthesis_notes and not error:
         try:
             with wall_timeout(config.synthesis_wall_timeout, "answer synthesis"):
-                synthesis_payload, synthesis_latency = synthesize_answer(case, notes, config)
-            synthesis_source = "model_synthesis"
+                synthesis_payload, synthesis_latency = synthesize_answer(case, synthesis_notes, config)
+            synthesis_source = "agent_model_synthesis" if tool_notes else "model_synthesis"
         except Exception as exc:  # noqa: BLE001
             synthesis_error = f"synthesis_error: {exc}"
-    if notes and not synthesis_payload:
-        synthesis_payload = fallback_payload_from_notes(notes)
+    if branch_notes and not synthesis_payload and not tool_notes:
+        synthesis_payload = fallback_payload_from_notes(branch_notes)
         synthesis_source = "branch_notes"
 
     scored = score_case(case, synthesis_payload) if synthesis_payload else {
@@ -279,6 +397,16 @@ def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
         "model_final_answer": "",
         "reference_answer": case.reference_answer,
     }
+    audit_payload: dict[str, Any] = {}
+    audit_notes: list[str] = []
+    audit_latency = 0.0
+    audit_error = ""
+    audit_scored: dict[str, Any] = {}
+    if config.tool_policy == "audit":
+        audit_payload, audit_notes, audit_latency, audit_error = run_case_tool_invocations(case)
+        if audit_payload:
+            audit_scored = score_case(case, audit_payload)
+
     return {
         **scored,
         "tree_latency_seconds": round(tree_latency, 3),
@@ -289,7 +417,20 @@ def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
         "tree_error": error,
         "synthesis_error": synthesis_error,
         "synthesis_source": synthesis_source,
-        "branch_notes": notes,
+        "tool_policy": config.tool_policy,
+        "tool_participates": bool(tool_payload and config.tool_policy == "agent"),
+        "tool_choice_latency_seconds": round(tool_choice_latency, 3),
+        "tool_choice_error": tool_choice_error,
+        "tool_choice_raw": tool_choice_raw,
+        "selected_tool_indices": selected_tool_indices,
+        "tool_latency_seconds": round(tool_latency, 3),
+        "tool_error": tool_error,
+        "tool_audit_latency_seconds": round(audit_latency, 3),
+        "tool_audit_error": audit_error,
+        "tool_audit_final_answer": str(audit_payload.get("final_answer", "")) if audit_payload else "",
+        "tool_audit_ok": bool(audit_scored.get("ok", False)) if audit_scored else False,
+        "tool_audit_notes": audit_notes,
+        "branch_notes": synthesis_notes,
     }
 
 
@@ -410,6 +551,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--synthesis-nodes", type=int, default=8)
     parser.add_argument("--tree-wall-timeout", type=float, default=900.0)
     parser.add_argument("--synthesis-wall-timeout", type=float, default=600.0)
+    parser.add_argument(
+        "--tool-policy",
+        choices=("audit", "agent", "oracle"),
+        default="audit",
+        help=(
+            "audit: tools are only run after the answer for scoring/audit metadata; "
+            "agent: the model must request tool indices before tool observations are used; "
+            "oracle: legacy shortcut that uses benchmark tool answers directly and must not be used as agent evidence."
+        ),
+    )
+    parser.add_argument(
+        "--tool-participates",
+        action="store_true",
+        help="Deprecated alias for --tool-policy agent. This no longer enables oracle tool answers.",
+    )
     parser.add_argument("--allow-live-fallback", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--prefer-local-fallback", action="store_true")
     parser.add_argument("--freeform-output", action="store_true")
@@ -419,6 +575,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     cases = selected_cases(args)
+    tool_policy = "agent" if args.tool_participates else args.tool_policy
     config = ToTConfig(
         api_url=args.api_url,
         model=args.model,
@@ -433,6 +590,7 @@ def main() -> int:
         synthesis_nodes=args.synthesis_nodes,
         tree_wall_timeout=args.tree_wall_timeout,
         synthesis_wall_timeout=args.synthesis_wall_timeout,
+        tool_policy=tool_policy,
     )
     rows: list[dict[str, Any]] = []
     started_at = time.perf_counter()
@@ -455,6 +613,11 @@ def main() -> int:
         "model": args.model,
         "case_count": len(cases),
         "elapsed_seconds": round(time.perf_counter() - started_at, 3),
+        "tool_policy": tool_policy,
+        "tool_participates": any(
+            bool(row.get("tot", {}).get("tool_participates"))
+            for row in rows
+        ),
         "rows": rows,
     }
     for key in ("direct", "tot"):
