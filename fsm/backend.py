@@ -52,6 +52,17 @@ DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS = (
     "one candidate answer expression extracted",
     "consistency checked against limits and constraints",
 )
+DEFAULT_REASONING_DEPTH_PRESET = "medium"
+LOW_META_ANALYSIS_STEP_ORDERING = DEFAULT_META_ANALYSIS_STEP_ORDERING[:5]
+LOW_META_ANALYSIS_COMPLETION_SIGNALS = DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS[:5]
+HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING = (
+    "stress one unresolved assumption against an alternative local closure",
+    "compare surviving candidate answer forms and keep one",
+)
+HIGH_META_ANALYSIS_EXTRA_COMPLETION_SIGNALS = (
+    "one unresolved assumption stressed against an alternative local closure",
+    "surviving candidate answer forms compared and one kept",
+)
 MIN_META_ANALYSIS_STEP_COUNT = len(DEFAULT_META_ANALYSIS_STEP_ORDERING)
 
 ChatRequester = Callable[[str, dict[str, Any], float], Any]
@@ -1317,6 +1328,42 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         problem_statement = str(problem_context.get("problem_statement", "")).strip()
         return bool(problem_statement) and len(problem_statement) <= self.META_ANALYSIS_SHORT_TEXT_LIMIT
 
+    @staticmethod
+    def _normalize_reasoning_depth_preset(problem_context: dict[str, Any]) -> str:
+        normalized = str(problem_context.get("reasoning_depth_preset", DEFAULT_REASONING_DEPTH_PRESET)).strip().lower()
+        if normalized in {"low", "medium", "high"}:
+            return normalized
+        return DEFAULT_REASONING_DEPTH_PRESET
+
+    def _meta_analysis_profile(self, problem_context: dict[str, Any]) -> dict[str, Any]:
+        preset = self._normalize_reasoning_depth_preset(problem_context)
+        if preset == "low":
+            return {
+                "preset": preset,
+                "step_ordering": list(LOW_META_ANALYSIS_STEP_ORDERING),
+                "completion_signals": list(LOW_META_ANALYSIS_COMPLETION_SIGNALS),
+                "max_route_options": 3,
+            }
+        if preset == "high":
+            return {
+                "preset": preset,
+                "step_ordering": [
+                    *DEFAULT_META_ANALYSIS_STEP_ORDERING,
+                    *HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING,
+                ],
+                "completion_signals": [
+                    *DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS,
+                    *HIGH_META_ANALYSIS_EXTRA_COMPLETION_SIGNALS,
+                ],
+                "max_route_options": 7,
+            }
+        return {
+            "preset": preset,
+            "step_ordering": list(DEFAULT_META_ANALYSIS_STEP_ORDERING),
+            "completion_signals": list(DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS),
+            "max_route_options": 6,
+        }
+
     def _build_fast_local_meta_analysis(self, problem_context: dict[str, Any]) -> dict[str, Any]:
         summarized_context = self._summarize_problem_context_for_meta_analysis(problem_context, minimal=True)
         problem_statement = self._truncate_meta_analysis_text(
@@ -1324,7 +1371,8 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             self.META_ANALYSIS_SHORT_TEXT_LIMIT,
         )
         objective = problem_statement or "Solve the problem through a small sequence of local steps."
-        step_ordering = list(self.LOCAL_META_ANALYSIS_STEP_ORDERING)
+        profile = self._meta_analysis_profile(problem_context)
+        step_ordering = list(profile["step_ordering"])
         first_step = step_ordering[0]
         route_options = self._derive_fast_local_route_options(
             self._build_local_meta_analysis_route_seed_text(
@@ -1333,6 +1381,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             ),
             problem_context=problem_context,
         )
+        route_options = route_options[: int(profile["max_route_options"])]
 
         fast_payload = {
             "objective": objective,
@@ -1341,11 +1390,12 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             "minimal_subproblems": step_ordering,
             "step_ordering": step_ordering,
             "first_step": first_step,
-            "completion_signals": list(self.LOCAL_META_ANALYSIS_COMPLETION_SIGNALS),
+            "completion_signals": list(profile["completion_signals"]),
             "route_options": route_options,
             "step_blueprints": self._derive_fast_local_step_blueprints(
                 first_step=first_step,
                 route_options=route_options,
+                step_ordering=step_ordering,
             ),
         }
         return _coerce_model_payload(MetaAnalysisPayload, fast_payload)
@@ -1482,6 +1532,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         *,
         first_step: str,
         route_options: list[dict[str, Any]],
+        step_ordering: list[str],
     ) -> list[dict[str, Any]]:
         route_families = [
             str(option.get("route_family", "")).strip()
@@ -1493,49 +1544,58 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         if route_summary:
             first_guidance = f"{first_guidance} Available route families: {route_summary}."
 
-        return [
+        blueprints = [
             {
                 "label": first_step,
                 "step_type": "strategy_scan",
                 "guidance": f"{first_guidance} Name one governing law/model, one decisive assumption, or one active correction quantity only.",
-            },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[1],
-                "step_type": "incremental_refinement",
+            }
+        ]
+
+        for label in step_ordering[1:]:
+            blueprints.append(self._build_incremental_step_blueprint(label))
+
+        return blueprints
+
+    @staticmethod
+    def _build_incremental_step_blueprint(label: str) -> dict[str, Any]:
+        guidance_by_label = {
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[1]: {
                 "guidance": "Choose exactly one deferred correction quantity or closure for the selected route, and defer everything else.",
                 "correction_mode": "one correction at a time",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[2],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[2]: {
                 "guidance": "Write one short target relation in known variables and stop.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[3],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[3]: {
                 "guidance": "Identify one remaining unknown, missing boundary condition, or closure relation that still blocks the selected route.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[4],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[4]: {
                 "guidance": "Add exactly one constitutive relation, closure choice, or material law needed for the selected route.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[5],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[5]: {
                 "guidance": "Reduce the current branch to one solvable local relation and defer every unrelated simplification.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[6],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[6]: {
                 "guidance": "Extract one candidate answer expression or one explicit next-state relation and stop.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[7],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[7]: {
                 "guidance": "Run one short limiting-case, dimensional, or boundary-consistency check and stop.",
             },
-        ]
+            HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING[0]: {
+                "guidance": "Stress exactly one unresolved assumption against one alternative local closure or approximation, and defer all other repairs.",
+            },
+            HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING[1]: {
+                "guidance": "Compare only the surviving candidate answer forms, keep one locally consistent form, and defer final polish.",
+            },
+        }
+        blueprint = dict(guidance_by_label.get(label, {}))
+        blueprint.setdefault("guidance", "Refine exactly one local subproblem and defer everything else.")
+        return {
+            "label": label,
+            "step_type": "incremental_refinement",
+            **blueprint,
+        }
 
     def _contains_any_keyword(self, text: str, keywords: set[str]) -> bool:
         return any(keyword in text for keyword in keywords)
@@ -1699,7 +1759,8 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             self.META_ANALYSIS_SHORT_TEXT_LIMIT,
         )
         objective = problem_statement or "Solve the problem through a small sequence of local steps."
-        step_ordering = list(self.LOCAL_META_ANALYSIS_STEP_ORDERING)
+        profile = self._meta_analysis_profile(problem_context)
+        step_ordering = list(profile["step_ordering"])
         first_step = step_ordering[0]
         route_options = self._derive_fast_local_route_options(
             self._build_local_meta_analysis_route_seed_text(
@@ -1708,6 +1769,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             ),
             problem_context=problem_context,
         )
+        route_options = route_options[: int(profile["max_route_options"])]
 
         fallback_payload = {
             "objective": objective,
@@ -1716,11 +1778,12 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             "minimal_subproblems": step_ordering,
             "step_ordering": step_ordering,
             "first_step": first_step,
-            "completion_signals": list(self.LOCAL_META_ANALYSIS_COMPLETION_SIGNALS),
+            "completion_signals": list(profile["completion_signals"]),
             "route_options": route_options,
             "step_blueprints": self._derive_fast_local_step_blueprints(
                 first_step=first_step,
                 route_options=route_options,
+                step_ordering=step_ordering,
             ),
         }
         return _coerce_model_payload(MetaAnalysisPayload, fallback_payload)

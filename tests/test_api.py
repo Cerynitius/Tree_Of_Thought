@@ -169,9 +169,53 @@ class ToTAPITests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["problem_context"], DEFAULT_PROBLEM_CONTEXT_DRAFT)
+        self.assertEqual(payload["scheduler"]["depth_preset"], "medium")
         self.assertEqual(payload["scheduler"]["max_tree_depth"], 8)
         self.assertEqual(payload["scheduler"]["children_key"], "children")
         self.assertNotIn("expansion_budget", payload["scheduler"])
+
+    def test_create_session_injects_reasoning_depth_preset_into_backend_context(self) -> None:
+        captured = {}
+
+        def recording_bundle(config: ChatBackendConfig):
+            del config
+
+            def backend_factory(problem_context: dict[str, object]):
+                captured["problem_context"] = dict(problem_context)
+                return DeterministicContextBackendAdapter(problem_context)
+
+            return backend_factory, ApproveDeleteReviewAdapter()
+
+        client = TestClient(
+            create_app(
+                session_store=SchedulerSessionStore(),
+                adapter_bundle_factory=recording_bundle,
+            )
+        )
+
+        create = client.post(
+            "/api/tot/sessions",
+            json={
+                "run_on_create": False,
+                "scheduler": {
+                    "depth_preset": "high",
+                },
+                "problem_context": {
+                    "proposal": {"equations": ["root_eq"]},
+                    "calculation": {
+                        "skill_params": {"required_equation_patterns": ["root_eq"]}
+                    },
+                    "evaluation": {"score": 8.0},
+                },
+            },
+        )
+
+        self.assertEqual(create.status_code, 200)
+        session_id = create.json()["session_id"]
+        run = client.post(f"/api/tot/sessions/{session_id}/run")
+
+        self.assertEqual(run.status_code, 200)
+        self.assertEqual(captured["problem_context"]["reasoning_depth_preset"], "high")
 
     def test_create_session_accepts_custom_non_terminal_evaluation_model(self) -> None:
         captured = {}

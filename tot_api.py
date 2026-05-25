@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from pathlib import Path
 from threading import RLock, Thread
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Literal, Optional, TypeVar
 from uuid import uuid4
 
 import os
@@ -84,6 +84,7 @@ class ChatBackendConfig(BaseModel):
 
 
 class SchedulerConfig(BaseModel):
+    depth_preset: Literal["low", "medium", "high"] = "medium"
     max_reflections: int = Field(default=2, ge=0)
     max_tree_depth: int = Field(default=8, ge=0)
     max_frontier_size: int = Field(default=16, ge=1)
@@ -146,9 +147,13 @@ class SchedulerSessionStore:
         self._session_snapshots: dict[str, dict[str, Any]] = {}
         self._lock = RLock()
 
+    @staticmethod
+    def _freeze_snapshot(scheduler: ToTTreeScheduler) -> dict[str, Any]:
+        return deepcopy(scheduler.snapshot())
+
     def create(self, scheduler: ToTTreeScheduler) -> str:
         session_id = uuid4().hex
-        snapshot = jsonable_encoder(scheduler.snapshot())
+        snapshot = self._freeze_snapshot(scheduler)
         with self._lock:
             self._sessions[session_id] = scheduler
             self._session_locks[session_id] = RLock()
@@ -170,15 +175,15 @@ class SchedulerSessionStore:
         if scheduler is None or session_lock is None:
             raise KeyError(session_id)
         if not session_lock.acquire(blocking=False):
-            return self._merge_snapshot_with_live_run_state(cached_snapshot, scheduler)
+            return jsonable_encoder(self._merge_snapshot_with_live_run_state(cached_snapshot, scheduler))
         try:
-            snapshot = jsonable_encoder(scheduler.snapshot())
+            snapshot = self._freeze_snapshot(scheduler)
         finally:
             session_lock.release()
 
         with self._lock:
             self._session_snapshots[session_id] = snapshot
-        return deepcopy(snapshot)
+        return jsonable_encoder(deepcopy(snapshot))
 
     def execute(
         self,
@@ -192,13 +197,13 @@ class SchedulerSessionStore:
             raise KeyError(session_id)
         with session_lock:
             result = operation(scheduler)
-            snapshot = jsonable_encoder(scheduler.snapshot())
+            snapshot = self._freeze_snapshot(scheduler)
         with self._lock:
             self._session_snapshots[session_id] = snapshot
         return result
 
     def publish_snapshot(self, session_id: str, scheduler: ToTTreeScheduler) -> None:
-        snapshot = jsonable_encoder(scheduler.snapshot())
+        snapshot = self._freeze_snapshot(scheduler)
         with self._lock:
             if session_id not in self._sessions:
                 raise KeyError(session_id)
@@ -437,8 +442,10 @@ def create_app(
     def create_session(request: CreateSessionRequest) -> SessionStateResponse:
         try:
             backend_factory, deletion_review_adapter = app.state.adapter_bundle_factory(request.backend)
+            root_problem_context = deepcopy(request.problem_context)
+            root_problem_context["reasoning_depth_preset"] = request.scheduler.depth_preset
             scheduler = ToTTreeScheduler(
-                root_problem_context=deepcopy(request.problem_context),
+                root_problem_context=root_problem_context,
                 max_reflections=request.scheduler.max_reflections,
                 expansion_budget=0,
                 max_tree_depth=request.scheduler.max_tree_depth,

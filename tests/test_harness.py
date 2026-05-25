@@ -5203,6 +5203,145 @@ class TreeSchedulerTests(unittest.TestCase):
         self.assertEqual(by_rank[1].known_vars["merged_into_node_id"], by_rank[0].id)
         self.assertEqual(by_rank[2].known_vars["merged_into_node_id"], root.id)
 
+    def test_tree_scheduler_merges_repeated_divergent_logic_across_slots(self) -> None:
+        scheduler = ToTTreeScheduler(
+            root_problem_context={
+                "proposal": {
+                    "equations": ["root_eq"],
+                    "used_models": ["root_model"],
+                    "thought_step": "root route",
+                },
+                "calculation": {"skill_params": {"required_equation_patterns": ["root_eq"]}},
+                "evaluation": {"score": 8.0},
+                "children": [
+                    {
+                        "proposal": {
+                            "thought_step": "apply the boundary constraint at x = 0",
+                            "equations": ["u(0) = 0"],
+                            "used_models": ["diffusion"],
+                            "known_vars": {"active_boundary_condition": "u(0)=0"},
+                        },
+                        "calculation": {"skill_params": {"required_equation_patterns": ["u(0) = 0"]}},
+                        "evaluation": {"score": 9.0},
+                        "route_focus": {
+                            "route_family": "constraint",
+                            "correction_mode": "constraint-first refinement",
+                            "correction_target": "active boundary or constraint",
+                            "slot": "constraint.1.0",
+                        },
+                        "children": [],
+                    },
+                    {
+                        "proposal": {
+                            "thought_step": "apply the boundary constraint at x = 0",
+                            "equations": ["u(0) = 0"],
+                            "used_models": ["diffusion"],
+                            "known_vars": {"active_boundary_condition": "u(0)=0"},
+                        },
+                        "calculation": {"skill_params": {"required_equation_patterns": ["u(0) = 0"]}},
+                        "evaluation": {"score": 8.7},
+                        "route_focus": {
+                            "route_family": "constraint",
+                            "correction_mode": "consistency-check refinement",
+                            "correction_target": "local consistency condition",
+                            "slot": "constraint.1.1",
+                        },
+                        "children": [],
+                    },
+                ],
+            },
+            expansion_budget=1,
+            max_frontier_size=2,
+            max_children_per_expansion=2,
+            max_reflections=0,
+        )
+
+        result = scheduler.run()
+        root = result["root"]
+        by_rank = sorted(root.children, key=lambda child: child.known_vars["sibling_rank"])
+
+        self.assertEqual(by_rank[0].known_vars["scheduler_action"], "expanded")
+        self.assertEqual(by_rank[1].known_vars["scheduler_action"], "merged-duplicate")
+        self.assertEqual(by_rank[1].known_vars["merged_into_node_id"], by_rank[0].id)
+
+    def test_tree_scheduler_strictly_merges_semantically_repeated_non_root_leaf_divergence(self) -> None:
+        scheduler = ToTTreeScheduler(
+            root_problem_context={
+                "proposal": {
+                    "thought_step": "root route",
+                    "equations": ["root_eq"],
+                    "used_models": ["root_model"],
+                },
+                "calculation": {"skill_params": {"required_equation_patterns": ["root_eq"]}},
+                "evaluation": {"score": 8.0},
+                "children": [
+                    {
+                        "proposal": {
+                            "thought_step": "select the constraint route",
+                            "equations": ["child_eq"],
+                            "used_models": ["diffusion"],
+                        },
+                        "calculation": {"skill_params": {"required_equation_patterns": ["child_eq"]}},
+                        "evaluation": {"score": 9.0},
+                        "children": [
+                            {
+                                "proposal": {
+                                    "thought_step": "apply the boundary constraint at x = 0 before closing the route",
+                                    "equations": ["u(0) = 0"],
+                                    "known_vars": {"active_boundary_condition": "u(0)=0"},
+                                    "used_models": ["diffusion"],
+                                },
+                                "calculation": {"skill_params": {"required_equation_patterns": ["u(0) = 0"]}},
+                                "evaluation": {"score": 9.0},
+                                "meta_task_progress": {
+                                    "current_step_index": 2,
+                                    "phase": "incremental_refinement",
+                                },
+                                "route_focus": {
+                                    "route_family": "constraint",
+                                    "correction_mode": "constraint-first refinement",
+                                    "correction_target": "active boundary or constraint",
+                                    "slot": "constraint.2.0",
+                                },
+                            },
+                            {
+                                "proposal": {
+                                    "thought_step": "enforce the x=0 boundary condition before closing the branch",
+                                    "equations": ["u(0)=0"],
+                                    "known_vars": {"active_boundary_condition": "u(0) = 0"},
+                                    "used_models": ["diffusion"],
+                                },
+                                "calculation": {"skill_params": {"required_equation_patterns": ["u(0)=0"]}},
+                                "evaluation": {"score": 8.8},
+                                "meta_task_progress": {
+                                    "current_step_index": 2,
+                                    "phase": "incremental_refinement",
+                                },
+                                "route_focus": {
+                                    "route_family": "constraint",
+                                    "correction_mode": "consistency-check refinement",
+                                    "correction_target": "local consistency condition",
+                                    "slot": "constraint.2.1",
+                                },
+                            },
+                        ],
+                    }
+                ],
+            },
+            expansion_budget=2,
+            max_frontier_size=2,
+            max_children_per_expansion=2,
+            max_reflections=0,
+        )
+
+        result = scheduler.run()
+        child = result["root"].children[0]
+        by_rank = sorted(child.children, key=lambda grandchild: grandchild.known_vars["sibling_rank"])
+
+        self.assertEqual(by_rank[0].known_vars["scheduler_action"], "expanded")
+        self.assertEqual(by_rank[1].known_vars["scheduler_action"], "merged-semantic-duplicate")
+        self.assertEqual(by_rank[1].known_vars["merged_into_node_id"], by_rank[0].id)
+
     def test_tree_scheduler_can_persist_and_resume(self) -> None:
         scheduler = ToTTreeScheduler(
             root_problem_context={
