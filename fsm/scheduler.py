@@ -177,6 +177,8 @@ class ToTTreeScheduler:
                     continue
 
                 self._expanded_node_ids.append(parent_node.id)
+                if progress_callback is not None:
+                    progress_callback()
                 built_children: list[tuple[ToTNode, dict[str, Any]]] = []
                 for child_context in child_contexts:
                     child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
@@ -265,7 +267,7 @@ class ToTTreeScheduler:
                         "duplicate_child_ids": [
                             child.id
                             for child, _ in ranked_children
-                            if child.known_vars.get("scheduler_action") == "merged-duplicate"
+                            if child.known_vars.get("scheduler_action") in {"merged-duplicate", "merged-semantic-duplicate"}
                         ],
                         "loop_suppressed_child_ids": [
                             child.id
@@ -521,6 +523,14 @@ class ToTTreeScheduler:
                 node.known_vars["operator_steering_prompt"] = prompt
         meta_task_progress = problem_context.get("meta_task_progress")
         if isinstance(meta_task_progress, dict):
+            phase = str(meta_task_progress.get("phase", "")).strip()
+            if phase and not str(node.known_vars.get("meta_task_phase", "")).strip():
+                node.known_vars["meta_task_phase"] = phase
+            try:
+                step_index = int(meta_task_progress.get("current_step_index", 0))
+            except (TypeError, ValueError):
+                step_index = 0
+            node.known_vars.setdefault("meta_task_step_index", step_index)
             selected_route_family = str(meta_task_progress.get("selected_route_family", "")).strip()
             if selected_route_family and not str(node.known_vars.get("route_family", "")).strip():
                 node.known_vars["route_family"] = selected_route_family
@@ -1109,45 +1119,263 @@ class ToTTreeScheduler:
 
         canonical_id = self._signature_registry.get(signature)
         if canonical_id is not None and canonical_id != node.id:
-            canonical_node = self._node_index.get(canonical_id)
-            node.known_vars["merged_into_node_id"] = canonical_id
-            node.known_vars["suppressed_by_scheduler"] = "duplicate"
-            if canonical_node is not None:
-                canonical_node.known_vars.setdefault("merged_duplicate_node_ids", []).append(node.id)
-                canonical_node.known_vars.setdefault("merged_duplicate_parent_ids", []).append(parent_node.id)
-                canonical_node.known_vars["merged_duplicate_count"] = len(
-                    canonical_node.known_vars.get("merged_duplicate_node_ids", [])
-                )
-                canonical_node.score = max(canonical_node.score, node.score)
-                canonical_priority = self._node_priority(canonical_node)
-                duplicate_priority = self._node_priority(node)
-                canonical_node.known_vars["expansion_priority"] = max(
-                    canonical_priority,
-                    duplicate_priority,
-                )
-            return "merged-duplicate"
+            return self._merge_into_canonical_node(
+                node,
+                parent_node,
+                canonical_id,
+                suppressed_by="duplicate",
+                scheduler_action="merged-duplicate",
+            )
+
+        semantic_canonical_id = self._semantic_repeat_canonical_id(node, parent_node)
+        if semantic_canonical_id is not None and semantic_canonical_id != node.id:
+            return self._merge_into_canonical_node(
+                node,
+                parent_node,
+                semantic_canonical_id,
+                suppressed_by="semantic-duplicate",
+                scheduler_action="merged-semantic-duplicate",
+            )
 
         self._signature_registry[signature] = node.id
         return None
 
+    def _merge_into_canonical_node(
+        self,
+        node: ToTNode,
+        parent_node: ToTNode,
+        canonical_id: str,
+        *,
+        suppressed_by: str,
+        scheduler_action: str,
+    ) -> str:
+        canonical_node = self._node_index.get(canonical_id)
+        node.known_vars["merged_into_node_id"] = canonical_id
+        node.known_vars["suppressed_by_scheduler"] = suppressed_by
+        if canonical_node is not None:
+            canonical_node.known_vars.setdefault("merged_duplicate_node_ids", []).append(node.id)
+            canonical_node.known_vars.setdefault("merged_duplicate_parent_ids", []).append(parent_node.id)
+            canonical_node.known_vars.setdefault("merged_duplicate_actions", []).append(scheduler_action)
+            canonical_node.known_vars["merged_duplicate_count"] = len(
+                canonical_node.known_vars.get("merged_duplicate_node_ids", [])
+            )
+            canonical_node.score = max(canonical_node.score, node.score)
+            canonical_priority = self._node_priority(canonical_node)
+            duplicate_priority = self._node_priority(node)
+            canonical_node.known_vars["expansion_priority"] = max(
+                canonical_priority,
+                duplicate_priority,
+            )
+        return scheduler_action
+
+    @staticmethod
+    def _normalize_signature_text(value: Any) -> str:
+        return " ".join(str(value or "").strip().lower().split())
+
+    @staticmethod
+    def _normalize_equation_signature_text(value: Any) -> str:
+        return "".join(ch.lower() for ch in str(value or "").strip() if not ch.isspace())
+
+    def _normalize_signature_list(self, values: list[Any]) -> list[Any]:
+        normalized_items: list[Any] = []
+        for value in values:
+            normalized_value = self._normalize_signature_value(value)
+            if normalized_value not in ("", [], {}, None):
+                normalized_items.append(normalized_value)
+        return sorted(normalized_items, key=lambda item: str(item))
+
+    def _normalize_signature_mapping(self, mapping: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {}
+        for raw_key, raw_value in sorted(mapping.items(), key=lambda item: str(item[0])):
+            key = self._normalize_signature_text(raw_key)
+            value = self._normalize_signature_value(raw_value)
+            if key and value not in ("", [], {}, None):
+                normalized[key] = value
+        return normalized
+
+    def _normalize_signature_value(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return self._normalize_signature_mapping(value)
+        if isinstance(value, (list, tuple, set)):
+            return self._normalize_signature_list(list(value))
+        return self._normalize_signature_text(value)
+
+    def _logic_signature_markers(self, node: ToTNode) -> dict[str, Any]:
+        markers: dict[str, Any] = {}
+        for key in (
+            "active_correction",
+            "active_boundary_condition",
+            "active_control_parameter",
+            "final_answer",
+            "candidate_answer",
+            "answer",
+            "result",
+        ):
+            value = self._normalize_signature_value(node.known_vars.get(key))
+            if value not in ("", [], {}, None):
+                markers[key] = value
+
+        orchestrator_task = node.known_vars.get("orchestrator_task")
+        if isinstance(orchestrator_task, dict):
+            selected_task = self._normalize_signature_text(orchestrator_task.get("selected_task", ""))
+            if selected_task:
+                markers["selected_task"] = selected_task
+        return markers
+
+    @staticmethod
+    def _semantic_token_set(values: list[Any]) -> set[str]:
+        stopwords = {
+            "the",
+            "and",
+            "for",
+            "with",
+            "that",
+            "this",
+            "then",
+            "only",
+            "into",
+            "from",
+            "route",
+            "branch",
+            "local",
+            "current",
+            "selected",
+            "before",
+            "after",
+        }
+        tokens: set[str] = set()
+        for value in values:
+            raw = str(value or "").lower()
+            normalized = "".join(ch if ch.isalnum() else " " for ch in raw)
+            for token in normalized.split():
+                if len(token) < 3 or token in stopwords:
+                    continue
+                tokens.add(token)
+        return tokens
+
+    def _semantic_repeat_payload(self, node: ToTNode) -> dict[str, Any]:
+        markers = self._normalize_signature_mapping(self._logic_signature_markers(node))
+        orchestrator_task = node.known_vars.get("orchestrator_task")
+        selected_task = ""
+        if isinstance(orchestrator_task, dict):
+            selected_task = self._normalize_signature_text(orchestrator_task.get("selected_task", ""))
+        token_values = [node.thought_step, selected_task, *node.equations, *[str(value) for value in markers.values()]]
+        normalized_equations = sorted(
+            {
+                self._normalize_equation_signature_text(item)
+                for item in node.equations
+                if self._normalize_equation_signature_text(item)
+            }
+        )
+        return {
+            "used_models": tuple(self._normalize_signature_list(node.used_models)),
+            "equations": tuple(normalized_equations),
+            "markers": markers,
+            "tokens": tuple(sorted(self._semantic_token_set(token_values))),
+        }
+
+    @staticmethod
+    def _semantic_overlap_ratio(left_tokens: tuple[str, ...], right_tokens: tuple[str, ...]) -> float:
+        left = set(left_tokens)
+        right = set(right_tokens)
+        if not left or not right:
+            return 0.0
+        return len(left & right) / max(1, min(len(left), len(right)))
+
+    def _is_semantically_repeated_leaf(
+        self,
+        payload: dict[str, Any],
+        canonical_payload: dict[str, Any],
+    ) -> bool:
+        model_compatible = (
+            not payload["used_models"]
+            or not canonical_payload["used_models"]
+            or payload["used_models"] == canonical_payload["used_models"]
+        )
+        if not model_compatible:
+            return False
+        if payload["markers"] and payload["markers"] == canonical_payload["markers"]:
+            return True
+        if payload["equations"] and payload["equations"] == canonical_payload["equations"]:
+            return True
+        if len(payload["tokens"]) >= 4 and len(canonical_payload["tokens"]) >= 4:
+            return self._semantic_overlap_ratio(payload["tokens"], canonical_payload["tokens"]) >= 0.85
+        return False
+
+    def _semantic_repeat_canonical_id(self, node: ToTNode, parent_node: ToTNode) -> Optional[str]:
+        if parent_node.parent_id is None:
+            return None
+
+        distributed_reasoning_slot = str(node.known_vars.get("distributed_reasoning_slot", "")).strip()
+        if not distributed_reasoning_slot:
+            return None
+
+        payload = self._semantic_repeat_payload(node)
+        if not payload["markers"] and not payload["equations"] and len(payload["tokens"]) < 4:
+            return None
+
+        seen_canonical_ids: set[str] = set()
+        for sibling in parent_node.children:
+            if sibling.id == node.id:
+                continue
+            scheduler_action = str(sibling.known_vars.get("scheduler_action", "")).strip()
+            if not scheduler_action:
+                continue
+            canonical_id = str(sibling.known_vars.get("merged_into_node_id") or sibling.id)
+            if canonical_id in seen_canonical_ids:
+                continue
+            seen_canonical_ids.add(canonical_id)
+            canonical_node = self._node_index.get(canonical_id)
+            if canonical_node is None or canonical_node.id == node.id:
+                continue
+            canonical_payload = self._semantic_repeat_payload(canonical_node)
+            if self._is_semantically_repeated_leaf(payload, canonical_payload):
+                return canonical_node.id
+        return None
+
     def _compute_state_signature(self, node: ToTNode) -> str:
         signature_payload = {
-            "equations": sorted(str(item) for item in node.equations),
-            "used_models": sorted(str(item) for item in node.used_models),
-            "quantities": {str(key): value for key, value in node.quantities.items()},
-            "boundary_conditions": {
-                str(key): value for key, value in node.boundary_conditions.items()
-            },
+            "thought_step": self._normalize_signature_text(node.thought_step),
+            "equations": self._normalize_signature_list(node.equations),
+            "used_models": self._normalize_signature_list(node.used_models),
+            "quantities": self._normalize_signature_mapping(node.quantities),
+            "boundary_conditions": self._normalize_signature_mapping(node.boundary_conditions),
+            "logic_markers": self._logic_signature_markers(node),
         }
-        route_family = str(node.known_vars.get("route_family", "")).strip()
-        correction_mode = str(node.known_vars.get("correction_mode", "")).strip()
-        correction_target = str(node.known_vars.get("correction_target", "")).strip()
-        distributed_reasoning_slot = str(node.known_vars.get("distributed_reasoning_slot", "")).strip()
-        if route_family or correction_mode or correction_target or distributed_reasoning_slot:
-            signature_payload["route_family"] = route_family
-            signature_payload["correction_mode"] = correction_mode
-            signature_payload["correction_target"] = correction_target
-            signature_payload["distributed_reasoning_slot"] = distributed_reasoning_slot
+
+        phase = self._normalize_signature_text(node.known_vars.get("meta_task_phase", ""))
+        try:
+            step_index = int(node.known_vars.get("meta_task_step_index", -1))
+        except (TypeError, ValueError):
+            step_index = -1
+        preserve_route_signature = phase == "strategy_scan" or step_index == 0
+
+        route_family = self._normalize_signature_text(node.known_vars.get("route_family", ""))
+        correction_mode = self._normalize_signature_text(node.known_vars.get("correction_mode", ""))
+        correction_target = self._normalize_signature_text(node.known_vars.get("correction_target", ""))
+        if preserve_route_signature and (route_family or correction_mode or correction_target):
+            signature_payload["route_hint"] = {
+                "route_family": route_family,
+                "correction_mode": correction_mode,
+                "correction_target": correction_target,
+            }
+
+        elif not any(
+            (
+                signature_payload["thought_step"],
+                signature_payload["equations"],
+                signature_payload["used_models"],
+                signature_payload["quantities"],
+                signature_payload["boundary_conditions"],
+                signature_payload["logic_markers"],
+            )
+        ):
+            if route_family or correction_mode or correction_target:
+                signature_payload["route_hint"] = {
+                    "route_family": route_family,
+                    "correction_mode": correction_mode,
+                    "correction_target": correction_target,
+                }
         return _stable_hash(signature_payload)
 
     def _compute_diversity_key(self, node: ToTNode) -> str:

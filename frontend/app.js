@@ -3,7 +3,9 @@ const STORAGE_VERSION = 16;
 const DEFAULT_TIMEOUT_SECONDS = 600;
 const DEFAULT_ALLOW_LIVE_MODEL_FALLBACK = true;
 const DEFAULT_PREFER_LOCAL_FALLBACK = false;
+const DEFAULT_DEPTH_PRESET = "medium";
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
+const BUSY_REFRESH_INTERVAL_MS = 150;
 const RESULT_CANDIDATE_LIMIT = 6;
 const RESULT_ANSWER_KEYS = [
   "final_answer",
@@ -32,14 +34,76 @@ const LEGACY_MODELING_DEFAULTS = ["openai/gpt-oss-120b", "qwen3.6-35b-a3b-ud-mlx
 const LEGACY_REVIEW_DEFAULTS = ["qwen/qwen3-4b-2507", "qwen3.6-35b-a3b-ud-mlx"];
 const LEGACY_NON_TERMINAL_EVALUATION_DEFAULTS = ["qwen2.5-0.5b-instruct-mlx", "qwen/qwen3-1.7b"];
 
-const RECOMMENDED_MODEL_PRESET = {
+const BASE_MODEL_PRESET = {
   planningModel: DEFAULT_PLANNING_MODEL,
   modelingModel: DEFAULT_MODELING_MODEL,
   reviewModel: DEFAULT_REVIEW_MODEL,
   nonTerminalEvaluationModel: DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
-  timeoutSeconds: "600",
-  allowLiveModelFallback: DEFAULT_ALLOW_LIVE_MODEL_FALLBACK,
-  preferLocalFallback: DEFAULT_PREFER_LOCAL_FALLBACK,
+};
+
+const DEPTH_PRESET_PROFILES = {
+  low: {
+    key: "low",
+    label: "LOW DEPTH",
+    timeoutSeconds: "120",
+    allowLiveModelFallback: true,
+    preferLocalFallback: true,
+    stepLabel: "5-step decomposition",
+    divergenceLabel: "tight divergence",
+    description: "short runtime, local-first fallback, coarse steps, narrow branching",
+    scheduler: {
+      depth_preset: "low",
+      max_reflections: 1,
+      max_tree_depth: 5,
+      max_frontier_size: 6,
+      max_children_per_expansion: 2,
+      max_frontier_per_diversity_key: 1,
+      children_key: "children",
+    },
+  },
+  medium: {
+    key: "medium",
+    label: "MEDIUM DEPTH",
+    timeoutSeconds: "600",
+    allowLiveModelFallback: DEFAULT_ALLOW_LIVE_MODEL_FALLBACK,
+    preferLocalFallback: DEFAULT_PREFER_LOCAL_FALLBACK,
+    stepLabel: "8-step decomposition",
+    divergenceLabel: "balanced divergence",
+    description: "live-first fallback on failure, balanced steps, balanced branching",
+    scheduler: {
+      depth_preset: "medium",
+      max_reflections: 2,
+      max_tree_depth: 8,
+      max_frontier_size: 16,
+      max_children_per_expansion: 6,
+      max_frontier_per_diversity_key: 4,
+      children_key: "children",
+    },
+  },
+  high: {
+    key: "high",
+    label: "HIGH DEPTH",
+    timeoutSeconds: "1200",
+    allowLiveModelFallback: false,
+    preferLocalFallback: false,
+    stepLabel: "10-step decomposition",
+    divergenceLabel: "wide root fanout, strict leaf pruning",
+    description: "long runtime, live-only planning, finer steps, wider root branching",
+    scheduler: {
+      depth_preset: "high",
+      max_reflections: 3,
+      max_tree_depth: 12,
+      max_frontier_size: 24,
+      max_children_per_expansion: 8,
+      max_frontier_per_diversity_key: 6,
+      children_key: "children",
+    },
+  },
+};
+
+const RECOMMENDED_MODEL_PRESET = {
+  ...BASE_MODEL_PRESET,
+  ...DEPTH_PRESET_PROFILES[DEFAULT_DEPTH_PRESET],
 };
 
 const FALLBACK_DEFAULT_PROBLEM_CONTEXT = {
@@ -56,6 +120,7 @@ const FALLBACK_DEFAULT_PROBLEM_CONTEXT = {
 };
 
 const DEFAULT_SCHEDULER_CONFIG = {
+  depth_preset: DEFAULT_DEPTH_PRESET,
   max_reflections: 2,
   max_tree_depth: 8,
   max_frontier_size: 16,
@@ -114,7 +179,10 @@ const dom = {
   steerPromptInput: document.getElementById("steerPromptInput"),
   deleteNodeButton: document.getElementById("deleteNodeButton"),
   deleteSteerRunButton: document.getElementById("deleteSteerRunButton"),
-  applyRecommendedPresetButton: document.getElementById("applyRecommendedPresetButton"),
+  applyLowDepthPresetButton: document.getElementById("applyLowDepthPresetButton"),
+  applyMediumDepthPresetButton: document.getElementById("applyMediumDepthPresetButton"),
+  applyHighDepthPresetButton: document.getElementById("applyHighDepthPresetButton"),
+  depthPresetSummary: document.getElementById("depthPresetSummary"),
   baseUrlInput: document.getElementById("baseUrlInput"),
   planningModelInput: document.getElementById("planningModelInput"),
   modelingModelInput: document.getElementById("modelingModelInput"),
@@ -225,38 +293,137 @@ function writeModelInput(element, value, fallback) {
   element.value = sanitizeModelName(value, fallback);
 }
 
-function applyRecommendedModelPreset() {
+function normalizeDepthPreset(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "low" || normalized === "medium" || normalized === "high") {
+    return normalized;
+  }
+  return DEFAULT_DEPTH_PRESET;
+}
+
+function getDepthPresetProfile(presetName) {
+  return DEPTH_PRESET_PROFILES[normalizeDepthPreset(presetName)] || DEPTH_PRESET_PROFILES[DEFAULT_DEPTH_PRESET];
+}
+
+function readJsonObjectOrFallback(rawValue, fallbackValue) {
+  try {
+    const parsed = parseJsonText(rawValue, "JSON payload", fallbackValue);
+    if (isPlainObject(parsed)) {
+      return parsed;
+    }
+  } catch (_error) {
+    return { ...fallbackValue };
+  }
+  return { ...fallbackValue };
+}
+
+function describeFallbackPolicy(profile) {
+  if (profile.preferLocalFallback) {
+    return "local-first fallback";
+  }
+  if (profile.allowLiveModelFallback) {
+    return "live-first fallback on failure";
+  }
+  return "live-only, no fallback";
+}
+
+function inferSelectedDepthPreset() {
+  const scheduler = readJsonObjectOrFallback(dom.schedulerConfigInput.value, DEFAULT_SCHEDULER_CONFIG);
+  if (typeof scheduler.depth_preset === "string" && scheduler.depth_preset.trim()) {
+    return normalizeDepthPreset(scheduler.depth_preset);
+  }
+  const problemContext = readJsonObjectOrFallback(dom.problemContextInput.value, FALLBACK_DEFAULT_PROBLEM_CONTEXT);
+  if (typeof problemContext.reasoning_depth_preset === "string" && problemContext.reasoning_depth_preset.trim()) {
+    return normalizeDepthPreset(problemContext.reasoning_depth_preset);
+  }
+  return DEFAULT_DEPTH_PRESET;
+}
+
+function renderDepthPresetControls() {
+  const selectedPreset = inferSelectedDepthPreset();
+  const profile = getDepthPresetProfile(selectedPreset);
+  const buttonMap = {
+    low: dom.applyLowDepthPresetButton,
+    medium: dom.applyMediumDepthPresetButton,
+    high: dom.applyHighDepthPresetButton,
+  };
+
+  Object.entries(buttonMap).forEach(([presetKey, button]) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const isActive = presetKey === selectedPreset;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+
+  if (dom.depthPresetSummary) {
+    dom.depthPresetSummary.textContent = `${profile.label}: timeout ${profile.timeoutSeconds}s | ${describeFallbackPolicy(profile)} | ${profile.stepLabel} | ${profile.divergenceLabel}.`;
+  }
+}
+
+function applyDepthPreset(presetName) {
+  const profile = getDepthPresetProfile(presetName);
+
   writeModelInput(
     dom.planningModelInput,
-    RECOMMENDED_MODEL_PRESET.planningModel,
+    BASE_MODEL_PRESET.planningModel,
     DEFAULT_PLANNING_MODEL,
   );
   writeModelInput(
     dom.modelingModelInput,
-    RECOMMENDED_MODEL_PRESET.modelingModel,
+    BASE_MODEL_PRESET.modelingModel,
     DEFAULT_MODELING_MODEL,
   );
   writeModelInput(
     dom.reviewModelInput,
-    RECOMMENDED_MODEL_PRESET.reviewModel,
+    BASE_MODEL_PRESET.reviewModel,
     DEFAULT_REVIEW_MODEL,
   );
   writeModelInput(
     dom.nonTerminalEvaluationModelInput,
-    RECOMMENDED_MODEL_PRESET.nonTerminalEvaluationModel,
+    BASE_MODEL_PRESET.nonTerminalEvaluationModel,
     DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
   );
+
   if (dom.timeoutInput instanceof HTMLInputElement) {
-    dom.timeoutInput.value = RECOMMENDED_MODEL_PRESET.timeoutSeconds;
+    dom.timeoutInput.value = profile.timeoutSeconds;
   }
   if (dom.allowLiveModelFallbackToggle instanceof HTMLInputElement) {
-    dom.allowLiveModelFallbackToggle.checked = RECOMMENDED_MODEL_PRESET.allowLiveModelFallback;
+    dom.allowLiveModelFallbackToggle.checked = profile.allowLiveModelFallback;
   }
   if (dom.preferLocalFallbackToggle instanceof HTMLInputElement) {
-    dom.preferLocalFallbackToggle.checked = RECOMMENDED_MODEL_PRESET.preferLocalFallback;
+    dom.preferLocalFallbackToggle.checked = profile.preferLocalFallback;
   }
+
+  const scheduler = readJsonObjectOrFallback(dom.schedulerConfigInput.value, DEFAULT_SCHEDULER_CONFIG);
+  dom.schedulerConfigInput.value = JSON.stringify(
+    {
+      ...scheduler,
+      ...profile.scheduler,
+      depth_preset: profile.key,
+    },
+    null,
+    2,
+  );
+
+  const problemContext = readJsonObjectOrFallback(dom.problemContextInput.value, FALLBACK_DEFAULT_PROBLEM_CONTEXT);
+  dom.problemContextInput.value = JSON.stringify(
+    {
+      ...problemContext,
+      reasoning_depth_preset: profile.key,
+    },
+    null,
+    2,
+  );
+
   persistDraft();
-  setStatus("Recommended preset applied.", "ok");
+  renderDepthPresetControls();
+  setStatus(`${profile.label} preset applied.`, "ok");
+}
+
+function applyRecommendedModelPreset() {
+  applyDepthPreset(RECOMMENDED_MODEL_PRESET.key);
 }
 
 function restoreDraft() {
@@ -397,6 +564,11 @@ function migrateLegacySchedulerConfig(rawValue) {
     if (parsed.max_tree_depth === undefined) {
       parsed.max_tree_depth = DEFAULT_SCHEDULER_CONFIG.max_tree_depth;
     }
+    if (!parsed.depth_preset) {
+      parsed.depth_preset = DEFAULT_SCHEDULER_CONFIG.depth_preset;
+    } else {
+      parsed.depth_preset = normalizeDepthPreset(parsed.depth_preset);
+    }
     if (parsed.max_frontier_size === undefined || parsed.max_frontier_size === 8) {
       parsed.max_frontier_size = DEFAULT_SCHEDULER_CONFIG.max_frontier_size;
     }
@@ -449,11 +621,17 @@ function wireEvents() {
   dom.deleteSteerRunButton.addEventListener("click", () => {
     runUiAction(() => deleteSelectedNode({ steer: true, runAfterDelete: true }));
   });
-  if (dom.applyRecommendedPresetButton instanceof HTMLButtonElement) {
-    dom.applyRecommendedPresetButton.addEventListener("click", () => {
-      applyRecommendedModelPreset();
-    });
-  }
+  [
+    [dom.applyLowDepthPresetButton, "low"],
+    [dom.applyMediumDepthPresetButton, "medium"],
+    [dom.applyHighDepthPresetButton, "high"],
+  ].forEach(([button, presetName]) => {
+    if (button instanceof HTMLButtonElement) {
+      button.addEventListener("click", () => {
+        applyDepthPreset(presetName);
+      });
+    }
+  });
 
   dom.sessionIdInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -746,7 +924,7 @@ function scheduleBusyRefresh() {
       return;
     }
     refreshSession({ silent: true });
-  }, 750);
+  }, BUSY_REFRESH_INTERVAL_MS);
 }
 
 function setStatus(message, tone = "idle", options = {}) {
@@ -846,6 +1024,7 @@ function render() {
   renderActionFeedback();
   renderStatusLog();
   renderButtons();
+  renderDepthPresetControls();
   renderResultsBoard();
   renderTree();
   renderDetailPane();
@@ -1223,6 +1402,9 @@ function renderButtons() {
     dom.collapseAllButton,
     dom.deleteNodeButton,
     dom.deleteSteerRunButton,
+    dom.applyLowDepthPresetButton,
+    dom.applyMediumDepthPresetButton,
+    dom.applyHighDepthPresetButton,
   ].forEach((button) => {
     button.disabled = uiState.requestInFlight;
   });
@@ -2362,13 +2544,19 @@ function buildCreateSessionPayload() {
     ),
   };
 
+  const depthPreset = normalizeDepthPreset(scheduler.depth_preset);
+
   return {
     problem_context: {
       ...problemContext,
       problem_statement: problemStatement,
+      reasoning_depth_preset: depthPreset,
     },
     backend,
-    scheduler,
+    scheduler: {
+      ...scheduler,
+      depth_preset: depthPreset,
+    },
     run_on_create: true,
   };
 }
