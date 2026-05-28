@@ -1259,7 +1259,8 @@ class ToTTreeScheduler:
         selected_task = ""
         if isinstance(orchestrator_task, dict):
             selected_task = self._normalize_signature_text(orchestrator_task.get("selected_task", ""))
-        token_values = [node.thought_step, selected_task, *node.equations, *[str(value) for value in markers.values()]]
+        normalized_thought = self._normalize_signature_text(node.thought_step)
+        token_values = [selected_task, *node.equations, *[str(value) for value in markers.values()]]
         normalized_equations = sorted(
             {
                 self._normalize_equation_signature_text(item)
@@ -1269,6 +1270,7 @@ class ToTTreeScheduler:
         )
         return {
             "used_models": tuple(self._normalize_signature_list(node.used_models)),
+            "thought": normalized_thought,
             "equations": tuple(normalized_equations),
             "markers": markers,
             "tokens": tuple(sorted(self._semantic_token_set(token_values))),
@@ -1298,21 +1300,24 @@ class ToTTreeScheduler:
             return True
         if payload["equations"] and payload["equations"] == canonical_payload["equations"]:
             return True
-        if len(payload["tokens"]) >= 4 and len(canonical_payload["tokens"]) >= 4:
-            return self._semantic_overlap_ratio(payload["tokens"], canonical_payload["tokens"]) >= 0.85
+        if len(payload["tokens"]) >= 5 and len(canonical_payload["tokens"]) >= 5:
+            return self._semantic_overlap_ratio(payload["tokens"], canonical_payload["tokens"]) >= 1.0
         return False
 
     def _semantic_repeat_canonical_id(self, node: ToTNode, parent_node: ToTNode) -> Optional[str]:
-        if parent_node.parent_id is None:
-            return None
-
-        distributed_reasoning_slot = str(node.known_vars.get("distributed_reasoning_slot", "")).strip()
-        if not distributed_reasoning_slot:
-            return None
-
         payload = self._semantic_repeat_payload(node)
-        if not payload["markers"] and not payload["equations"] and len(payload["tokens"]) < 4:
+        if not payload["thought"] and not payload["markers"] and not payload["equations"] and len(payload["tokens"]) < 4:
             return None
+
+        node_route_family = str(node.known_vars.get("route_family", "")).strip().lower()
+        node_progress = node.known_vars.get("meta_task_progress")
+        node_step_index: Optional[int] = None
+        node_phase = ""
+        if isinstance(node_progress, dict):
+            maybe_step = node_progress.get("current_step_index")
+            if isinstance(maybe_step, int):
+                node_step_index = maybe_step
+            node_phase = str(node_progress.get("phase", "")).strip().lower()
 
         seen_canonical_ids: set[str] = set()
         for sibling in parent_node.children:
@@ -1321,12 +1326,28 @@ class ToTTreeScheduler:
             scheduler_action = str(sibling.known_vars.get("scheduler_action", "")).strip()
             if not scheduler_action:
                 continue
+
+            sibling_route_family = str(sibling.known_vars.get("route_family", "")).strip().lower()
+            if node_route_family and sibling_route_family and sibling_route_family != node_route_family:
+                continue
+
+            sibling_progress = sibling.known_vars.get("meta_task_progress")
+            if isinstance(sibling_progress, dict):
+                sibling_step = sibling_progress.get("current_step_index")
+                if isinstance(node_step_index, int) and isinstance(sibling_step, int) and sibling_step != node_step_index:
+                    continue
+                sibling_phase = str(sibling_progress.get("phase", "")).strip().lower()
+                if node_phase and sibling_phase and sibling_phase != node_phase:
+                    continue
+
             canonical_id = str(sibling.known_vars.get("merged_into_node_id") or sibling.id)
             if canonical_id in seen_canonical_ids:
                 continue
             seen_canonical_ids.add(canonical_id)
             canonical_node = self._node_index.get(canonical_id)
             if canonical_node is None or canonical_node.id == node.id:
+                continue
+            if canonical_node.status != NodeStatus.ACTIVE:
                 continue
             canonical_payload = self._semantic_repeat_payload(canonical_node)
             if self._is_semantically_repeated_leaf(payload, canonical_payload):
