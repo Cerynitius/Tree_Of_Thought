@@ -1879,6 +1879,17 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         if explicit_payload is not None:
             return explicit_payload
 
+        if self._has_explicit_stage_payload(
+            request.problem_context,
+            "proposal",
+            "calculation",
+            "evaluation",
+        ):
+            return self._build_local_reflection_payload(
+                request,
+                fallback_reason="explicit stage payload context",
+            )
+
         if self._should_skip_live_model_call(request.problem_context):
             return self._build_local_reflection_payload(
                 request,
@@ -1960,6 +1971,16 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         if isinstance(payload, dict) and payload:
             return dict(payload)
         return None
+
+    @staticmethod
+    def _has_explicit_stage_payload(problem_context: dict[str, Any], *keys: str) -> bool:
+        for key in keys:
+            payload = problem_context.get(key)
+            if isinstance(payload, dict) and payload:
+                return True
+            if isinstance(payload, list) and any(isinstance(item, dict) and item for item in payload):
+                return True
+        return False
 
     def _build_local_proposal_payload(
         self,

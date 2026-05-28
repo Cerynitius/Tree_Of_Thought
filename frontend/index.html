@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ToT Terminal</title>
-  <link rel="stylesheet" href="/static/style.css?v=18">
+  <link rel="stylesheet" href="/static/style.css?v=19">
 </head>
 <body>
   <div id="app" class="shell">
@@ -134,14 +134,6 @@
           <input id="nonTerminalEvaluationModelInput" class="text-input" type="text" value="qwen3.5-9b-mlx">
           <label class="field-label" for="timeoutInput">Timeout seconds</label>
           <input id="timeoutInput" class="text-input" type="number" min="1" step="1" value="600">
-          <label class="toggle-row" for="allowLiveModelFallbackToggle">
-            <input id="allowLiveModelFallbackToggle" type="checkbox" checked>
-            <span>allow fallback after model failure</span>
-          </label>
-          <label class="toggle-row" for="preferLocalFallbackToggle">
-            <input id="preferLocalFallbackToggle" type="checkbox">
-            <span>prefer local fallback before live model</span>
-          </label>
 
           <div class="subsection-title">JSON payloads</div>
           <label class="field-label" for="problemContextInput">Problem context JSON</label>
@@ -174,10 +166,6 @@
               <span class="result-card-section">
                 <span class="result-card-label">Final answer</span>
                 <span id="bestResultFormula" class="result-card-formula result-card-answer">No formula yet.</span>
-              </span>
-              <span class="result-card-section">
-                <span class="result-card-label">Winning branch</span>
-                <span id="bestResultThought" class="result-card-thought">Run a session to populate scored leaves.</span>
               </span>
             </button>
             <div class="candidate-results-wrap">
@@ -216,6 +204,6 @@
   <noscript>
     <div class="noscript-banner">This GUI requires JavaScript to talk to the ToT API.</div>
   </noscript>
-  <script src="/static/app.js?v=20" defer></script>
+  <script src="/static/app.js?v=25" defer></script>
 </body>
 </html>

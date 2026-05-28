@@ -1650,6 +1650,33 @@ class NodeHarnessTests(unittest.TestCase):
         self.assertEqual(reflection["equations"], ["F_refined = m * a"])
         self.assertEqual(requester.calls, [])
 
+    def test_local_chat_backend_uses_local_reflection_for_low_scoring_explicit_payloads(self) -> None:
+        requester = CapturingChatRequester()
+        backend = LocalChatDualModelBackendAdapter(requester=requester)
+        problem_context = {
+            "proposal": {
+                "thought_step": "explicit proposal",
+                "equations": ["F = m * a"],
+            },
+            "evaluation": {
+                "score": 5.1,
+                "reason": "explicit low score",
+            },
+        }
+
+        reflection = backend.reflect(
+            ReflectionRequest(
+                attempt_index=0,
+                problem_context=problem_context,
+                current_node=NodeSnapshot(id="node-1", thought_step="low score"),
+                latest_critique="score below threshold",
+            )
+        )
+
+        self.assertTrue(reflection["known_vars"]["local_model_fallback"])
+        self.assertEqual(reflection["known_vars"]["fallback_stage"], "reflection")
+        self.assertEqual(requester.calls, [])
+
     def test_local_chat_backend_fallback_reflection_skips_orchestrator_live_call(self) -> None:
         requester = CapturingChatRequester()
         backend = LocalChatDualModelBackendAdapter(
@@ -5322,6 +5349,82 @@ class TreeSchedulerTests(unittest.TestCase):
                                     "correction_mode": "consistency-check refinement",
                                     "correction_target": "local consistency condition",
                                     "slot": "constraint.2.1",
+                                },
+                            },
+                        ],
+                    }
+                ],
+            },
+            expansion_budget=2,
+            max_frontier_size=2,
+            max_children_per_expansion=2,
+            max_reflections=0,
+        )
+
+        result = scheduler.run()
+        child = result["root"].children[0]
+        by_rank = sorted(child.children, key=lambda grandchild: grandchild.known_vars["sibling_rank"])
+
+        self.assertEqual(by_rank[0].known_vars["scheduler_action"], "expanded")
+        self.assertEqual(by_rank[1].known_vars["scheduler_action"], "merged-semantic-duplicate")
+        self.assertEqual(by_rank[1].known_vars["merged_into_node_id"], by_rank[0].id)
+
+    def test_tree_scheduler_merges_semantic_duplicates_without_slot_marker(self) -> None:
+        scheduler = ToTTreeScheduler(
+            root_problem_context={
+                "proposal": {
+                    "thought_step": "root route",
+                    "equations": ["root_eq"],
+                    "used_models": ["root_model"],
+                },
+                "calculation": {"skill_params": {"required_equation_patterns": ["root_eq"]}},
+                "evaluation": {"score": 8.0},
+                "children": [
+                    {
+                        "proposal": {
+                            "thought_step": "select the constraint route",
+                            "equations": ["child_eq"],
+                            "used_models": ["diffusion"],
+                        },
+                        "calculation": {"skill_params": {"required_equation_patterns": ["child_eq"]}},
+                        "evaluation": {"score": 9.0},
+                        "children": [
+                            {
+                                "proposal": {
+                                    "thought_step": "enforce boundary condition at x zero before closure",
+                                    "equations": ["u(0)=0"],
+                                    "known_vars": {"active_boundary_condition": "u(0)=0"},
+                                    "used_models": ["diffusion"],
+                                },
+                                "calculation": {"skill_params": {"required_equation_patterns": ["u(0)=0"]}},
+                                "evaluation": {"score": 8.9},
+                                "meta_task_progress": {
+                                    "current_step_index": 2,
+                                    "phase": "incremental_refinement",
+                                },
+                                "route_focus": {
+                                    "route_family": "constraint",
+                                    "correction_mode": "constraint-first refinement",
+                                    "correction_target": "active boundary or constraint",
+                                },
+                            },
+                            {
+                                "proposal": {
+                                    "thought_step": "enforce boundary condition at x = 0 before closure",
+                                    "equations": ["u(0) = 0"],
+                                    "known_vars": {"active_boundary_condition": "u(0) = 0"},
+                                    "used_models": ["diffusion"],
+                                },
+                                "calculation": {"skill_params": {"required_equation_patterns": ["u(0) = 0"]}},
+                                "evaluation": {"score": 8.7},
+                                "meta_task_progress": {
+                                    "current_step_index": 2,
+                                    "phase": "incremental_refinement",
+                                },
+                                "route_focus": {
+                                    "route_family": "constraint",
+                                    "correction_mode": "consistency-check refinement",
+                                    "correction_target": "local consistency condition",
                                 },
                             },
                         ],

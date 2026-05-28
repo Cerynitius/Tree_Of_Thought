@@ -148,11 +148,11 @@ class ToTAPITests(unittest.TestCase):
         self.assertIn("candidateResults", response.text)
         self.assertIn("/static/app.js", response.text)
 
-    def test_chat_backend_config_defaults_to_live_first_local_qwen_settings(self) -> None:
+    def test_chat_backend_config_defaults_to_live_only_local_qwen_settings(self) -> None:
         config = ChatBackendConfig()
 
         self.assertEqual(config.timeout, 600.0)
-        self.assertTrue(config.allow_live_model_fallback)
+        self.assertFalse(config.allow_live_model_fallback)
         self.assertFalse(config.prefer_local_fallback)
 
     def test_chat_backend_config_defaults_to_local_qwen_model_for_all_roles(self) -> None:

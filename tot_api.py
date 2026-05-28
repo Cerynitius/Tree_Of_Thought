@@ -74,7 +74,7 @@ class ChatBackendConfig(BaseModel):
     non_terminal_evaluation_model: str = Field(default_factory=lambda: os.getenv("NON_TERMINAL_EVALUATION_MODEL", DEFAULT_NON_TERMINAL_EVALUATION_MODEL))
     timeout: float = Field(default_factory=lambda: float(os.getenv("CHAT_TIMEOUT", "600")), gt=0.0)
     allow_live_model_fallback: bool = Field(
-        default_factory=lambda: _env_bool("ALLOW_LIVE_MODEL_FALLBACK", True),
+        default_factory=lambda: _env_bool("ALLOW_LIVE_MODEL_FALLBACK", False),
         description="Allow local deterministic fallback only after live model transport failures.",
     )
     prefer_local_fallback: bool = Field(

@@ -1,8 +1,6 @@
 const STORAGE_KEY = "tot-terminal-ui-v1";
 const STORAGE_VERSION = 16;
 const DEFAULT_TIMEOUT_SECONDS = 600;
-const DEFAULT_ALLOW_LIVE_MODEL_FALLBACK = true;
-const DEFAULT_PREFER_LOCAL_FALLBACK = false;
 const DEFAULT_DEPTH_PRESET = "medium";
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const BUSY_REFRESH_INTERVAL_MS = 150;
@@ -46,11 +44,9 @@ const DEPTH_PRESET_PROFILES = {
     key: "low",
     label: "LOW DEPTH",
     timeoutSeconds: "120",
-    allowLiveModelFallback: true,
-    preferLocalFallback: true,
     stepLabel: "5-step decomposition",
     divergenceLabel: "tight divergence",
-    description: "short runtime, local-first fallback, coarse steps, narrow branching",
+    description: "short runtime, live-only, coarse steps, narrow branching",
     scheduler: {
       depth_preset: "low",
       max_reflections: 1,
@@ -65,11 +61,9 @@ const DEPTH_PRESET_PROFILES = {
     key: "medium",
     label: "MEDIUM DEPTH",
     timeoutSeconds: "600",
-    allowLiveModelFallback: DEFAULT_ALLOW_LIVE_MODEL_FALLBACK,
-    preferLocalFallback: DEFAULT_PREFER_LOCAL_FALLBACK,
     stepLabel: "8-step decomposition",
     divergenceLabel: "balanced divergence",
-    description: "live-first fallback on failure, balanced steps, balanced branching",
+    description: "live-only, balanced steps, balanced branching",
     scheduler: {
       depth_preset: "medium",
       max_reflections: 2,
@@ -84,11 +78,9 @@ const DEPTH_PRESET_PROFILES = {
     key: "high",
     label: "HIGH DEPTH",
     timeoutSeconds: "1200",
-    allowLiveModelFallback: false,
-    preferLocalFallback: false,
     stepLabel: "10-step decomposition",
     divergenceLabel: "wide root fanout, strict leaf pruning",
-    description: "long runtime, live-only planning, finer steps, wider root branching",
+    description: "long runtime, live-only, finer steps, wider root branching",
     scheduler: {
       depth_preset: "high",
       max_reflections: 3,
@@ -189,8 +181,6 @@ const dom = {
   reviewModelInput: document.getElementById("reviewModelInput"),
   nonTerminalEvaluationModelInput: document.getElementById("nonTerminalEvaluationModelInput"),
   timeoutInput: document.getElementById("timeoutInput"),
-  allowLiveModelFallbackToggle: document.getElementById("allowLiveModelFallbackToggle"),
-  preferLocalFallbackToggle: document.getElementById("preferLocalFallbackToggle"),
   problemContextInput: document.getElementById("problemContextInput"),
   schedulerConfigInput: document.getElementById("schedulerConfigInput"),
   treeStats: document.getElementById("treeStats"),
@@ -201,7 +191,6 @@ const dom = {
   bestResultScore: document.getElementById("bestResultScore"),
   bestResultMeta: document.getElementById("bestResultMeta"),
   bestResultFormula: document.getElementById("bestResultFormula"),
-  bestResultThought: document.getElementById("bestResultThought"),
   candidateResults: document.getElementById("candidateResults"),
   treeViewport: document.getElementById("treeViewport"),
   treeLines: document.getElementById("treeLines"),
@@ -216,7 +205,7 @@ boot().catch((error) => {
 });
 
 async function boot() {
-  await applyDefaultDrafts();
+  const defaultDrafts = await applyDefaultDrafts();
   restoreDraft();
   wireEvents();
   pushStatusLog(
@@ -225,6 +214,13 @@ async function boot() {
     "idle",
   );
   render();
+
+  if (defaultDrafts.warning) {
+    setStatus("Backend defaults endpoint unavailable. Using built-in drafts.", "warn", { record: false });
+    setActionFeedback("Backend defaults unavailable.", defaultDrafts.warning, "warn", { record: false });
+    pushStatusLog("Backend defaults unavailable.", defaultDrafts.warning, "warn");
+    render();
+  }
 
   if (dom.sessionIdInput.value.trim()) {
     await attachSession({ silent: true });
@@ -253,6 +249,7 @@ async function applyDefaultDrafts() {
   if (!dom.schedulerConfigInput.value.trim()) {
     dom.schedulerConfigInput.value = JSON.stringify(defaults.scheduler, null, 2);
   }
+  return defaults;
 }
 
 async function loadDefaultDrafts() {
@@ -260,10 +257,16 @@ async function loadDefaultDrafts() {
     problem_context: FALLBACK_DEFAULT_PROBLEM_CONTEXT,
     scheduler: DEFAULT_SCHEDULER_CONFIG,
   };
+  const buildFallbackResponse = (reason) => ({
+    ...fallback,
+    warning: `${reason} Open 127.0.0.1:8000 if this page is not serving /api/tot.`,
+  });
   try {
     const response = await fetch("/api/tot/defaults");
     if (!response.ok) {
-      return fallback;
+      return buildFallbackResponse(
+        `GET /api/tot/defaults returned HTTP ${response.status}. Using built-in defaults.`
+      );
     }
     const payload = await response.json();
     return {
@@ -273,9 +276,13 @@ async function loadDefaultDrafts() {
       scheduler: isPlainObject(payload.scheduler)
         ? payload.scheduler
         : fallback.scheduler,
+      warning: "",
     };
-  } catch (_error) {
-    return fallback;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return buildFallbackResponse(
+      `Failed to load /api/tot/defaults: ${reason}. Using built-in defaults.`
+    );
   }
 }
 
@@ -317,13 +324,7 @@ function readJsonObjectOrFallback(rawValue, fallbackValue) {
   return { ...fallbackValue };
 }
 
-function describeFallbackPolicy(profile) {
-  if (profile.preferLocalFallback) {
-    return "local-first fallback";
-  }
-  if (profile.allowLiveModelFallback) {
-    return "live-first fallback on failure";
-  }
+function describeFallbackPolicy(_profile) {
   return "live-only, no fallback";
 }
 
@@ -388,12 +389,6 @@ function applyDepthPreset(presetName) {
 
   if (dom.timeoutInput instanceof HTMLInputElement) {
     dom.timeoutInput.value = profile.timeoutSeconds;
-  }
-  if (dom.allowLiveModelFallbackToggle instanceof HTMLInputElement) {
-    dom.allowLiveModelFallbackToggle.checked = profile.allowLiveModelFallback;
-  }
-  if (dom.preferLocalFallbackToggle instanceof HTMLInputElement) {
-    dom.preferLocalFallbackToggle.checked = profile.preferLocalFallback;
   }
 
   const scheduler = readJsonObjectOrFallback(dom.schedulerConfigInput.value, DEFAULT_SCHEDULER_CONFIG);
@@ -462,16 +457,6 @@ function restoreDraft() {
     isLegacyDraft ? migrateLegacyTimeoutSeconds(stored.timeout) : stored.timeout
   );
   dom.timeoutInput.value = String(restoredTimeout);
-  if (dom.allowLiveModelFallbackToggle instanceof HTMLInputElement) {
-    dom.allowLiveModelFallbackToggle.checked = typeof stored.allowLiveModelFallback === "boolean"
-      ? stored.allowLiveModelFallback
-      : DEFAULT_ALLOW_LIVE_MODEL_FALLBACK;
-  }
-  if (dom.preferLocalFallbackToggle instanceof HTMLInputElement) {
-    dom.preferLocalFallbackToggle.checked = typeof stored.preferLocalFallback === "boolean"
-      ? stored.preferLocalFallback
-      : DEFAULT_PREFER_LOCAL_FALLBACK;
-  }
 
   writeModelInput(
     dom.planningModelInput,
@@ -538,8 +523,6 @@ function persistDraft() {
       DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
     ),
     timeout: dom.timeoutInput.value.trim(),
-    allowLiveModelFallback: Boolean(dom.allowLiveModelFallbackToggle && dom.allowLiveModelFallbackToggle.checked),
-    preferLocalFallback: Boolean(dom.preferLocalFallbackToggle && dom.preferLocalFallbackToggle.checked),
     deleteReason: dom.deleteReasonInput.value,
     steerPrompt: dom.steerPromptInput.value,
     searchQuery: dom.searchInput.value,
@@ -676,6 +659,7 @@ function wireEvents() {
   });
 
   [
+    dom.sessionIdInput,
     dom.problemPromptInput,
     dom.problemContextInput,
     dom.schedulerConfigInput,
@@ -685,9 +669,8 @@ function wireEvents() {
     dom.reviewModelInput,
     dom.nonTerminalEvaluationModelInput,
     dom.timeoutInput,
-    dom.allowLiveModelFallbackToggle,
-    dom.preferLocalFallbackToggle,
     dom.deleteReasonInput,
+    dom.steerPromptInput,
   ].filter(Boolean).forEach((element) => {
     const eventName = element instanceof HTMLInputElement && element.type === "checkbox" ? "change" : "input";
     element.addEventListener(eventName, persistDraft);
@@ -1515,9 +1498,6 @@ function renderResultsBoard() {
     dom.bestResultScore.textContent = "-";
     dom.bestResultMeta.textContent = "no result";
     dom.bestResultFormula.textContent = "No formula yet.";
-    dom.bestResultThought.textContent = uiState.sessionId
-      ? "Waiting for scored leaf nodes."
-      : "Run a session to populate scored leaves.";
     const empty = document.createElement("div");
     empty.className = "candidate-empty";
     empty.textContent = "No candidates.";
@@ -1527,13 +1507,12 @@ function renderResultsBoard() {
 
   const best = board.best;
   dom.resultSummary.textContent =
-    `${board.label} ${board.scoredCount} | best ${best.node.id} | score ${formatScore(best.node.score)} | ${runLabel}`;
+    `${board.label} ${board.scoredCount} | best score ${formatScore(best.node.score)} | ${runLabel}`;
   dom.bestResultCard.disabled = false;
   dom.bestResultCard.dataset.nodeId = best.node.id;
   dom.bestResultScore.textContent = formatScore(best.node.score);
   dom.bestResultMeta.textContent = buildResultMeta(best);
   dom.bestResultFormula.textContent = buildNodeAnswerText(best.node, { maxLength: 1_400 });
-  dom.bestResultThought.textContent = summarizeResultThought(best.node);
 
   const fragment = document.createDocumentFragment();
   board.candidates.forEach((entry, index) => {
@@ -1557,17 +1536,13 @@ function renderResultsBoard() {
 
     const meta = document.createElement("span");
     meta.className = "candidate-meta";
-    meta.textContent = `${entry.node.id} | score ${formatScore(entry.node.score)} | d${entry.depth}`;
+    meta.textContent = `score ${formatScore(entry.node.score)} | depth ${entry.depth}`;
 
     const formula = document.createElement("span");
     formula.className = "candidate-formula";
     formula.textContent = buildNodeAnswerText(entry.node, { maxLength: 260 });
 
-    const thought = document.createElement("span");
-    thought.className = "candidate-thought";
-    thought.textContent = summarizeResultThought(entry.node);
-
-    body.append(meta, formula, thought);
+    body.append(meta, formula);
     button.append(rank, body);
     fragment.append(button);
   });
@@ -1620,7 +1595,6 @@ function compareResultEntries(left, right) {
 function buildResultMeta(entry) {
   const node = entry.node;
   const parts = [
-    node.id,
     `depth ${entry.depth}`,
     shortStatus(displayResultState(node)),
   ];
@@ -2342,16 +2316,22 @@ async function refreshSession(options = {}) {
     const previousSnapshot = uiState.snapshot;
     const response = await apiRequest(`/api/tot/sessions/${encodeURIComponent(uiState.sessionId)}`);
     const refreshSummary = summarizeSessionAction("refresh", previousSnapshot, response.state);
+    const hasVisibleChange = hasVisibleMetricsChange(
+      getSnapshotMetrics(previousSnapshot),
+      getSnapshotMetrics(response.state)
+    );
     const hasStableIdleSnapshot = Boolean(
       !isSessionBusy(response.state)
-      && !hasVisibleMetricsChange(
-        getSnapshotMetrics(previousSnapshot),
-        getSnapshotMetrics(response.state)
-      )
+      && !hasVisibleChange
+    );
+    const matchesCurrentFeedback = Boolean(
+      refreshSummary.title === uiState.lastActionTitle
+      && refreshSummary.detail === uiState.lastActionDetail
+      && (refreshSummary.tone || "ok") === uiState.lastActionTone
     );
     const preserveSilentFeedback = Boolean(
       options.silent
-      && hasStableIdleSnapshot
+      && (hasStableIdleSnapshot || (!hasVisibleChange && matchesCurrentFeedback))
     );
     if (options.silent && hasStableIdleSnapshot && uiState.pollingEnabled) {
       uiState.pollingEnabled = false;
@@ -2373,6 +2353,7 @@ async function refreshSession(options = {}) {
             record: false,
           }
         : refreshSummary,
+      { preserveUpdatedAt: preserveSilentFeedback },
     );
   }, options);
 }
@@ -2536,12 +2517,6 @@ function buildCreateSessionPayload() {
       DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
     ),
     timeout: parsePositiveNumber(dom.timeoutInput.value, "timeout"),
-    allow_live_model_fallback: Boolean(
-      dom.allowLiveModelFallbackToggle && dom.allowLiveModelFallbackToggle.checked,
-    ),
-    prefer_local_fallback: Boolean(
-      dom.preferLocalFallbackToggle && dom.preferLocalFallbackToggle.checked,
-    ),
   };
 
   const depthPreset = normalizeDepthPreset(scheduler.depth_preset);
@@ -2609,10 +2584,12 @@ function migrateLegacyReviewModel(value) {
     : normalized;
 }
 
-function applySessionState(sessionId, snapshot, message, tone = "ok", actionFeedback = null) {
+function applySessionState(sessionId, snapshot, message, tone = "ok", actionFeedback = null, options = {}) {
   uiState.sessionId = String(sessionId || "");
   uiState.snapshot = snapshot || null;
-  uiState.lastUpdatedAt = new Date();
+  if (!options.preserveUpdatedAt) {
+    uiState.lastUpdatedAt = new Date();
+  }
   dom.sessionIdInput.value = uiState.sessionId;
   persistDraft();
   if (isSessionBusy(snapshot)) {
