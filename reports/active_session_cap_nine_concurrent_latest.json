@@ -1,0 +1,178 @@
+{
+  "date": "2026-05-30",
+  "model": "qwen3.6-35b-a3b-ud-mlx",
+  "observation_seconds": 360,
+  "backend": {
+    "max_active_auto_runs": 3,
+    "background_admission_mode": "slice_cap",
+    "timeout_seconds": 180
+  },
+  "scheduler": {
+    "max_live_children_per_batch": 2,
+    "use_local_child_proposal": true,
+    "use_local_child_evaluation": true
+  },
+  "comparison_baseline": {
+    "source": "reports/concurrency_isolation_latest.json",
+    "scenario": "nine_concurrent_without_active_cap",
+    "summary": {
+      "total_sessions": 9,
+      "busy_sessions": 9,
+      "ready_sessions": 0,
+      "error_sessions": 0,
+      "timeout_error_sessions": 0,
+      "avg_expansions": 0.0,
+      "avg_frontier": 0.0,
+      "avg_nodes": 1.0
+    }
+  },
+  "active_cap_run": {
+    "summary": {
+      "total_sessions": 9,
+      "busy_sessions": 7,
+      "ready_sessions": 2,
+      "error_sessions": 0,
+      "timeout_error_sessions": 0,
+      "avg_expansions": 13.44,
+      "avg_frontier": 1.56,
+      "avg_nodes": 9.67
+    },
+    "rows": [
+      {
+        "problem_key": "spring_friction",
+        "preset": "low",
+        "session_id": "7587302c269b40f59d376eac41dfb22b",
+        "status": "ready",
+        "phase": "frontier-empty",
+        "expansions": 27,
+        "frontier": 0,
+        "nodes": 19,
+        "last_error": ""
+      },
+      {
+        "problem_key": "spring_friction",
+        "preset": "medium",
+        "session_id": "08eb72dcb22f4617beeed6ae2182a338",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 32,
+        "frontier": 5,
+        "nodes": 22,
+        "last_error": ""
+      },
+      {
+        "problem_key": "spring_friction",
+        "preset": "high",
+        "session_id": "31989516b5d142a68c0569111a049533",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 35,
+        "frontier": 9,
+        "nodes": 27,
+        "last_error": ""
+      },
+      {
+        "problem_key": "incline_friction",
+        "preset": "low",
+        "session_id": "769540cbb6614b0986cbe328e94c1290",
+        "status": "busy",
+        "phase": "queued-active-slot",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 0,
+        "last_error": ""
+      },
+      {
+        "problem_key": "incline_friction",
+        "preset": "medium",
+        "session_id": "079a49894c30446f8b02ab2e3c3ae333",
+        "status": "busy",
+        "phase": "queued-active-slot",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 0,
+        "last_error": ""
+      },
+      {
+        "problem_key": "incline_friction",
+        "preset": "high",
+        "session_id": "6a6cae2dea1648c58642d4600667ff26",
+        "status": "busy",
+        "phase": "building-root",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 0,
+        "last_error": ""
+      },
+      {
+        "problem_key": "probability_same_color",
+        "preset": "low",
+        "session_id": "29b3fcec61624626af1cd1d9d87788a5",
+        "status": "ready",
+        "phase": "frontier-empty",
+        "expansions": 27,
+        "frontier": 0,
+        "nodes": 19,
+        "last_error": ""
+      },
+      {
+        "problem_key": "probability_same_color",
+        "preset": "medium",
+        "session_id": "142f24ba307e45039f0582f0cecafe25",
+        "status": "busy",
+        "phase": "queued-active-slot",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 0,
+        "last_error": ""
+      },
+      {
+        "problem_key": "probability_same_color",
+        "preset": "high",
+        "session_id": "6a4d39e6384642e09314fc22f145316b",
+        "status": "busy",
+        "phase": "queued-active-slot",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 0,
+        "last_error": ""
+      }
+    ],
+    "heartbeat_observations": [
+      {
+        "t_seconds": 30,
+        "phase_counts": {
+          "busy:building-root": 3,
+          "busy:queued-active-slot": 6
+        }
+      },
+      {
+        "t_seconds": 120,
+        "phase_counts": {
+          "busy:building-root": 2,
+          "busy:expanding-frontier": 1,
+          "busy:queued-active-slot": 5,
+          "ready:frontier-empty": 1
+        }
+      },
+      {
+        "t_seconds": 360,
+        "phase_counts": {
+          "busy:building-root": 1,
+          "busy:expanding-frontier": 2,
+          "busy:queued-active-slot": 4,
+          "ready:frontier-empty": 2
+        }
+      }
+    ]
+  },
+  "interpretation": {
+    "goal_check": {
+      "target": "~1 expansion/session average under 9 concurrent",
+      "result": "passed",
+      "evidence": "avg_expansions increased from 0.00 to 13.44 in the same 360s window"
+    },
+    "main_takeaway": "The active-session slice cap plus local non-root proposal/evaluation restored aggregate throughput under 9 concurrent load, but admission is not yet fair: a small subset of sessions consumed most slices while others remained queued.",
+    "next_risk": "Throughput is recovered at the batch level, but starvation remains visible because queued sessions are not served in FIFO or round-robin order."
+  }
+}

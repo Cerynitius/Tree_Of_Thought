@@ -121,7 +121,7 @@
           <div id="depthPresetSummary" class="depth-preset-summary">MEDIUM DEPTH: timeout 600s | live-first fallback on failure | 8-step decomposition | balanced divergence.</div>
 
           <div class="subsection-title">Backend connection</div>
-          <div class="panel-note">The depth preset applies timeout, fallback policy, backend step decomposition, and scheduler branching limits together. Root route scan can still fan out; deeper route-local divergence is deduped more aggressively.</div>
+          <div class="panel-note">The depth preset applies timeout, fallback policy, backend step decomposition, and scheduler branching limits together. Root route scan now respects the same child surface cap, and deeper route-local divergence is still deduped more aggressively.</div>
           <label class="field-label" for="baseUrlInput">Base URL</label>
           <input id="baseUrlInput" class="text-input" type="text" value="http://localhost:1234/api/v1/chat">
           <label class="field-label" for="planningModelInput">Planning model</label>

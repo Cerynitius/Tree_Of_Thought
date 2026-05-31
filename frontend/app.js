@@ -1,5 +1,5 @@
 const STORAGE_KEY = "tot-terminal-ui-v1";
-const STORAGE_VERSION = 16;
+const STORAGE_VERSION = 21;
 const DEFAULT_TIMEOUT_SECONDS = 600;
 const DEFAULT_DEPTH_PRESET = "medium";
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
@@ -22,6 +22,18 @@ const RESULT_ANSWER_KEYS = [
   "steady_state",
   "output",
 ];
+const RESULT_META_EQUATION_PREFIXES = ["step_focus(", "refine(", "route(", "guidance(", "task("];
+const RESULT_META_TEXT_PATTERNS = [
+  /\bidentify governing relation\b/i,
+  /\bchoose one active correction or closure\b/i,
+  /\bexpress the target quantity in known variables\b/i,
+  /\bisolate the remaining unknown or boundary condition\b/i,
+  /\broute-local planning claim\b/i,
+  /\brefine only the current subproblem\b/i,
+  /\bselect\s+.+\s+route\b/i,
+  /\bcurrent child branch\b/i,
+];
+const NO_CONCRETE_FINAL_ANSWER_TEXT = "No concrete final answer extracted from this branch yet.";
 const DEFAULT_PLANNING_MODEL = "qwen3.5-9b-mlx";
 const DEFAULT_MODELING_MODEL = "qwen3.5-9b-mlx";
 const DEFAULT_REVIEW_MODEL = "qwen3.5-9b-mlx";
@@ -53,6 +65,11 @@ const DEPTH_PRESET_PROFILES = {
       max_tree_depth: 5,
       max_frontier_size: 6,
       max_children_per_expansion: 2,
+      max_live_children_per_batch: 2,
+      use_local_root_proposal: true,
+      use_local_root_evaluation: true,
+      use_local_child_proposal: true,
+      use_local_child_evaluation: true,
       max_frontier_per_diversity_key: 1,
       children_key: "children",
     },
@@ -69,7 +86,12 @@ const DEPTH_PRESET_PROFILES = {
       max_reflections: 2,
       max_tree_depth: 8,
       max_frontier_size: 16,
-      max_children_per_expansion: 6,
+      max_children_per_expansion: 3,
+      max_live_children_per_batch: 2,
+      use_local_root_proposal: true,
+      use_local_root_evaluation: true,
+      use_local_child_proposal: true,
+      use_local_child_evaluation: true,
       max_frontier_per_diversity_key: 4,
       children_key: "children",
     },
@@ -79,14 +101,19 @@ const DEPTH_PRESET_PROFILES = {
     label: "HIGH DEPTH",
     timeoutSeconds: "1200",
     stepLabel: "10-step decomposition",
-    divergenceLabel: "wide root fanout, strict leaf pruning",
+    divergenceLabel: "broader search, capped child batches",
     description: "long runtime, live-only, finer steps, wider root branching",
     scheduler: {
       depth_preset: "high",
       max_reflections: 3,
       max_tree_depth: 12,
       max_frontier_size: 24,
-      max_children_per_expansion: 8,
+      max_children_per_expansion: 4,
+      max_live_children_per_batch: 2,
+      use_local_root_proposal: true,
+      use_local_root_evaluation: true,
+      use_local_child_proposal: true,
+      use_local_child_evaluation: true,
       max_frontier_per_diversity_key: 6,
       children_key: "children",
     },
@@ -116,7 +143,12 @@ const DEFAULT_SCHEDULER_CONFIG = {
   max_reflections: 2,
   max_tree_depth: 8,
   max_frontier_size: 16,
-  max_children_per_expansion: 6,
+  max_children_per_expansion: 3,
+  max_live_children_per_batch: 2,
+  use_local_root_proposal: true,
+  use_local_root_evaluation: true,
+  use_local_child_proposal: true,
+  use_local_child_evaluation: true,
   max_frontier_per_diversity_key: 4,
   children_key: "children",
 };
@@ -552,11 +584,34 @@ function migrateLegacySchedulerConfig(rawValue) {
     } else {
       parsed.depth_preset = normalizeDepthPreset(parsed.depth_preset);
     }
+    const presetProfile = DEPTH_PRESET_PROFILES[parsed.depth_preset] || DEPTH_PRESET_PROFILES[DEFAULT_DEPTH_PRESET];
     if (parsed.max_frontier_size === undefined || parsed.max_frontier_size === 8) {
       parsed.max_frontier_size = DEFAULT_SCHEDULER_CONFIG.max_frontier_size;
     }
-    if (parsed.max_children_per_expansion === undefined || [3, 4].includes(parsed.max_children_per_expansion)) {
-      parsed.max_children_per_expansion = DEFAULT_SCHEDULER_CONFIG.max_children_per_expansion;
+    const legacyPresetChildSurface = {
+      medium: 6,
+      high: 8,
+    };
+    if (
+      parsed.max_children_per_expansion === undefined
+      || parsed.max_children_per_expansion === legacyPresetChildSurface[parsed.depth_preset]
+    ) {
+      parsed.max_children_per_expansion = presetProfile.scheduler.max_children_per_expansion;
+    }
+    if (parsed.max_live_children_per_batch === undefined) {
+      parsed.max_live_children_per_batch = presetProfile.scheduler.max_live_children_per_batch;
+    }
+    if (parsed.use_local_root_proposal === undefined) {
+      parsed.use_local_root_proposal = presetProfile.scheduler.use_local_root_proposal;
+    }
+    if (parsed.use_local_root_evaluation === undefined) {
+      parsed.use_local_root_evaluation = presetProfile.scheduler.use_local_root_evaluation;
+    }
+    if (parsed.use_local_child_proposal === undefined) {
+      parsed.use_local_child_proposal = presetProfile.scheduler.use_local_child_proposal;
+    }
+    if (parsed.use_local_child_evaluation === undefined) {
+      parsed.use_local_child_evaluation = presetProfile.scheduler.use_local_child_evaluation;
     }
     if (parsed.max_frontier_per_diversity_key === undefined || parsed.max_frontier_per_diversity_key === 2) {
       parsed.max_frontier_per_diversity_key = DEFAULT_SCHEDULER_CONFIG.max_frontier_per_diversity_key;
@@ -1060,6 +1115,47 @@ function getRunState(snapshot) {
   return isPlainObject(runState) ? runState : {};
 }
 
+function getInFlightExpansion(snapshot) {
+  const inFlight = getRunState(snapshot).in_flight_expansion;
+  return isPlainObject(inFlight) ? inFlight : null;
+}
+
+function getInFlightExpansionMetrics(snapshot) {
+  const inFlight = getInFlightExpansion(snapshot);
+  if (!inFlight) {
+    return null;
+  }
+  const parentId = String(inFlight.parent_id || "").trim();
+  const parentDepth = Number.isFinite(Number(inFlight.parent_depth))
+    ? Number(inFlight.parent_depth)
+    : null;
+  const expectedChildCount = Number.isFinite(Number(inFlight.expected_child_count))
+    ? Number(inFlight.expected_child_count)
+    : 0;
+  const builtChildCount = Number.isFinite(Number(inFlight.built_child_count))
+    ? Number(inFlight.built_child_count)
+    : 0;
+  return {
+    parentId,
+    parentDepth,
+    expectedChildCount,
+    builtChildCount,
+  };
+}
+
+function formatInFlightExpansion(snapshot, { compact = false } = {}) {
+  const metrics = getInFlightExpansionMetrics(snapshot);
+  if (!metrics) {
+    return "";
+  }
+  const parentHint = metrics.parentId ? metrics.parentId.slice(0, 8) : "pending";
+  if (compact) {
+    return `in-flight ${metrics.builtChildCount}/${metrics.expectedChildCount}`;
+  }
+  const depthLabel = metrics.parentDepth === null ? "" : ` at depth ${metrics.parentDepth}`;
+  return `${metrics.builtChildCount}/${metrics.expectedChildCount} child nodes built for ${parentHint}${depthLabel}`;
+}
+
 function isSessionBusy(snapshot) {
   const status = String(getRunState(snapshot).status || "idle").trim().toLowerCase();
   return status === "busy";
@@ -1413,6 +1509,8 @@ function renderMeta() {
     ? uiState.snapshot.frontier
     : [];
   const runState = getRunState(uiState.snapshot);
+  const inFlightLabel = formatInFlightExpansion(uiState.snapshot, { compact: true });
+  const inFlightSuffix = inFlightLabel ? ` | ${inFlightLabel}` : "";
 
   if (!model.root) {
     dom.treeStats.textContent = "no tree loaded";
@@ -1423,14 +1521,14 @@ function renderMeta() {
 
   if (model.root.known_vars && model.root.known_vars.synthetic_placeholder_root) {
     dom.treeStats.textContent =
-      `root pending | status ${String(runState.status || "idle")} | phase ${String(runState.phase || "created")} | frontier ${frontier.length}`;
+      `root pending | status ${String(runState.status || "idle")} | phase ${String(runState.phase || "created")} | frontier ${frontier.length}${inFlightSuffix}`;
     dom.selectionStats.textContent = "selection: pending root";
     dom.searchMeta.textContent = uiState.searchQuery ? "0 matches" : "0 matches";
     return;
   }
 
   dom.treeStats.textContent =
-    `nodes ${model.allNodes.length} | active ${model.activeCount} | pruned ${model.prunedCount} | leaves ${model.leafCount} | depth ${model.maxDepth} | frontier ${frontier.length}`;
+    `nodes ${model.allNodes.length} | active ${model.activeCount} | pruned ${model.prunedCount} | leaves ${model.leafCount} | depth ${model.maxDepth} | frontier ${frontier.length}${inFlightSuffix}`;
 
   const selectedNode = getSelectedNode();
   if (selectedNode) {
@@ -1615,81 +1713,226 @@ function summarizeResultThought(node) {
 
 function buildNodeAnswerText(node, options = {}) {
   const maxLength = Number.isFinite(options.maxLength) ? Number(options.maxLength) : 1_000;
-  const equations = Array.isArray(node && node.equations)
-    ? node.equations.map((equation) => formatInlineValue(equation)).filter(Boolean)
-    : [];
-  if (equations.length) {
-    return trimText(equations.join("\n"), maxLength);
+  const bestCandidate = selectBestAnswerCandidate(collectNodeAnswerCandidates(node));
+  if (bestCandidate && isConcreteAnswerCandidate(bestCandidate)) {
+    return trimText(bestCandidate.text, maxLength);
   }
-
-  const knownVarsAnswer = extractAnswerText(node && node.known_vars);
-  if (knownVarsAnswer) {
-    return trimText(knownVarsAnswer, maxLength);
-  }
-
-  const quantitiesAnswer = extractAnswerText(node && node.quantities);
-  if (quantitiesAnswer) {
-    return trimText(quantitiesAnswer, maxLength);
-  }
-
-  const quantitiesSummary = formatStructuredAnswer(node && node.quantities);
-  if (quantitiesSummary) {
-    return trimText(quantitiesSummary, maxLength);
-  }
-
-  const boundaryAnswer = extractAnswerText(node && node.boundary_conditions);
-  if (boundaryAnswer) {
-    return trimText(boundaryAnswer, maxLength);
-  }
-
-  const boundarySummary = formatStructuredAnswer(node && node.boundary_conditions);
-  if (boundarySummary) {
-    return trimText(boundarySummary, maxLength);
-  }
-
-  return trimText(String(node && node.thought_step ? node.thought_step : "No final answer or formula recorded on this node."), maxLength);
+  return trimText(NO_CONCRETE_FINAL_ANSWER_TEXT, maxLength);
 }
 
-function extractAnswerText(value, depth = 0) {
+function collectNodeAnswerCandidates(node) {
+  const candidates = [];
+  const equationLines = collectConcreteEquationLines(node && node.equations);
+  if (equationLines.length) {
+    pushAnswerCandidate(candidates, equationLines.join("\n"), { source: "equations" });
+  }
+
+  collectAnswerCandidates(candidates, node && node.known_vars, { source: "known_vars" });
+  collectAnswerCandidates(candidates, node && node.quantities, { source: "quantities" });
+  pushAnswerCandidate(candidates, formatStructuredAnswer(node && node.quantities), {
+    source: "quantities-summary",
+  });
+  collectAnswerCandidates(candidates, node && node.boundary_conditions, { source: "boundary_conditions" });
+  pushAnswerCandidate(candidates, formatStructuredAnswer(node && node.boundary_conditions), {
+    source: "boundary-summary",
+  });
+  pushAnswerCandidate(candidates, formatInlineValue(node && node.thought_step), { source: "thought_step" });
+
+  return candidates;
+}
+
+function collectAnswerCandidates(candidates, value, context = {}, depth = 0) {
   if (value === null || value === undefined || depth > 2) {
-    return "";
+    return;
   }
+
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return formatInlineValue(value);
+    if (context.key && isAnswerLikeKey(context.key)) {
+      pushAnswerCandidate(candidates, formatInlineValue(value), context);
+    }
+    return;
   }
+
   if (Array.isArray(value)) {
-    return value.map((entry) => extractAnswerText(entry, depth + 1)).filter(Boolean).join("\n");
+    value.forEach((entry, index) => {
+      collectAnswerCandidates(candidates, entry, { ...context, key: context.key || String(index) }, depth + 1);
+    });
+    return;
   }
+
   if (!isPlainObject(value)) {
-    return "";
+    return;
   }
 
   for (const key of RESULT_ANSWER_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(value, key)) {
-      const directValue = value[key];
-      const directText = typeof directValue === "object" && directValue !== null
-        ? formatStructuredAnswer(directValue)
-        : formatInlineValue(directValue);
-      if (directText) {
-        return directText;
-      }
+    if (!Object.prototype.hasOwnProperty.call(value, key)) {
+      continue;
     }
+    const directValue = value[key];
+    const directText = typeof directValue === "object" && directValue !== null
+      ? formatStructuredAnswer(directValue)
+      : formatInlineValue(directValue);
+    pushAnswerCandidate(candidates, directText, { ...context, key, direct: true });
   }
 
   for (const [key, entryValue] of Object.entries(value)) {
     if (isNoisyResultKey(key)) {
       continue;
     }
-    if (!entryValue || typeof entryValue !== "object") {
+    if (typeof entryValue === "string" || typeof entryValue === "number" || typeof entryValue === "boolean") {
+      if (isAnswerLikeKey(key)) {
+        pushAnswerCandidate(candidates, formatInlineValue(entryValue), { ...context, key });
+      }
       continue;
     }
-    const nestedText = extractAnswerText(entryValue, depth + 1);
-    if (nestedText) {
-      return nestedText;
+    collectAnswerCandidates(candidates, entryValue, { ...context, key }, depth + 1);
+  }
+}
+
+function pushAnswerCandidate(candidates, text, context = {}) {
+  const normalizedText = normalizeAnswerCandidateText(text);
+  if (!normalizedText) {
+    return;
+  }
+  candidates.push({
+    text: normalizedText,
+    score: scoreAnswerCandidate(normalizedText, context),
+    source: context.source || "unknown",
+    key: context.key || "",
+  });
+}
+
+function selectBestAnswerCandidate(candidates) {
+  if (!Array.isArray(candidates) || !candidates.length) {
+    return null;
+  }
+  return candidates
+    .slice()
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      if (left.text.length !== right.text.length) {
+        return left.text.length - right.text.length;
+      }
+      return left.text.localeCompare(right.text);
+    })[0] || null;
+}
+
+function isConcreteAnswerCandidate(candidate) {
+  return Boolean(candidate && candidate.text && candidate.score >= 30);
+}
+
+function normalizeAnswerCandidateText(text) {
+  const normalized = String(text || "")
+    .split(/\n+/)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean)
+    .join("\n");
+  return normalized;
+}
+
+function collectConcreteEquationLines(equations) {
+  if (!Array.isArray(equations)) {
+    return [];
+  }
+  return equations
+    .map((equation) => normalizeAnswerCandidateText(formatInlineValue(equation)))
+    .filter(Boolean)
+    .filter((line) => !isMetaEquationText(line));
+}
+
+function isMetaEquationText(text) {
+  const normalized = String(text || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return RESULT_META_EQUATION_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+function isMetaAnswerText(text) {
+  const normalized = String(text || "").trim();
+  if (!normalized) {
+    return false;
+  }
+  const lines = normalized.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) {
+    return false;
+  }
+  return lines.every((line) => isMetaEquationText(line) || RESULT_META_TEXT_PATTERNS.some((pattern) => pattern.test(line)));
+}
+
+function isAnswerLikeKey(key) {
+  const normalized = String(key || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return RESULT_ANSWER_KEYS.includes(normalized)
+    || /answer|result|solution|output|fraction|probab|value|final|closed_form|steady_state/.test(normalized);
+}
+
+function scoreAnswerCandidate(text, context = {}) {
+  const normalized = normalizeAnswerCandidateText(text);
+  if (!normalized) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  let score = 0;
+  const source = String(context.source || "");
+  const key = String(context.key || "").trim().toLowerCase();
+
+  if (source === "equations") {
+    score += 70;
+  } else if (source === "known_vars") {
+    score += 56;
+  } else if (source === "quantities") {
+    score += 42;
+  } else if (source === "quantities-summary") {
+    score += 28;
+  } else if (source === "boundary_conditions") {
+    score += 34;
+  } else if (source === "boundary-summary") {
+    score += 22;
+  } else if (source === "thought_step") {
+    score -= 18;
+  }
+
+  if (key) {
+    const keyIndex = RESULT_ANSWER_KEYS.indexOf(key);
+    if (keyIndex >= 0) {
+      score += Math.max(10, 26 - keyIndex * 2);
+    } else if (isAnswerLikeKey(key)) {
+      score += 12;
     }
   }
 
-  return "";
+  if (/\b\d+\s*\/\s*\d+\b/.test(normalized)) {
+    score += 34;
+  }
+  if (/\b\d+(?:\.\d+)?\b/.test(normalized)) {
+    score += 14;
+  }
+  if (/[=≈≃<>≤≥]/.test(normalized)) {
+    score += 22;
+  }
+  if (/\b(?:probability|final answer|answer|result|therefore|equals|is)\b/i.test(normalized)) {
+    score += 10;
+  }
+  if (/\b(?:kg|m\/s|m\s*s\^-?1|m\/s\^2|n|j|pa|w|hz|rad\/s|s|k|c|v|a|ohm|t)\b/i.test(normalized)) {
+    score += 10;
+  }
+
+  const lines = normalized.split(/\n+/).filter(Boolean);
+  if (lines.length <= 3) {
+    score += 6;
+  }
+  score -= Math.min(24, Math.floor(normalized.length / 140));
+
+  if (isMetaAnswerText(normalized)) {
+    score -= 140;
+  }
+
+  return score;
 }
 
 function formatStructuredAnswer(value) {
@@ -1899,6 +2142,7 @@ function renderDetailPane() {
           ["Run phase", String(runState.phase || "-")],
           ["Problem context prepared", String(Boolean(runState.problem_context_prepared))],
           ["Auto run requested", String(Boolean(runState.auto_run_requested))],
+          ["In-flight expansion", formatInFlightExpansion(uiState.snapshot) || "-"],
           ["Last error", String(runState.last_error || "-")],
         ])
       )
@@ -2064,12 +2308,15 @@ function renderFrontier() {
   const frontier = Array.isArray(uiState.snapshot && uiState.snapshot.frontier)
     ? uiState.snapshot.frontier
     : [];
+  const inFlightDetail = formatInFlightExpansion(uiState.snapshot);
 
   if (frontier.length === 0) {
     dom.frontierList.innerHTML = "";
     const empty = document.createElement("div");
     empty.className = "meta-line";
-    empty.textContent = "frontier empty";
+    empty.textContent = inFlightDetail && isSessionBusy(uiState.snapshot)
+      ? `frontier temporarily empty | ${inFlightDetail}`
+      : "frontier empty";
     dom.frontierList.append(empty);
     return;
   }
@@ -2856,6 +3103,7 @@ function getSnapshotMetrics(snapshot) {
     : 0;
   const allNodes = root ? flattenNodes(root) : [];
   const runState = getRunState(snapshot);
+  const inFlight = getInFlightExpansionMetrics(snapshot);
 
   return {
     rootId: root && root.id ? String(root.id) : "",
@@ -2866,6 +3114,9 @@ function getSnapshotMetrics(snapshot) {
     expansionsUsed,
     runStatus: String(runState.status || "idle"),
     runPhase: String(runState.phase || "created"),
+    inFlightParentId: inFlight ? inFlight.parentId : "",
+    inFlightBuiltChildCount: inFlight ? inFlight.builtChildCount : 0,
+    inFlightExpectedChildCount: inFlight ? inFlight.expectedChildCount : 0,
     lastEvent: expansionLog.length ? expansionLog[expansionLog.length - 1] : null,
   };
 }
@@ -2886,6 +3137,9 @@ function hasVisibleMetricsChange(previousMetrics, nextMetrics) {
     || deltas.expansions !== 0
     || previousMetrics.runStatus !== nextMetrics.runStatus
     || previousMetrics.runPhase !== nextMetrics.runPhase
+    || previousMetrics.inFlightParentId !== nextMetrics.inFlightParentId
+    || previousMetrics.inFlightBuiltChildCount !== nextMetrics.inFlightBuiltChildCount
+    || previousMetrics.inFlightExpectedChildCount !== nextMetrics.inFlightExpectedChildCount
   );
 }
 
@@ -2894,7 +3148,10 @@ function formatSnapshotSummary(snapshot) {
   const runState = metrics.runStatus && metrics.runStatus !== "idle"
     ? ` | ${metrics.runStatus.toLowerCase()} ${metrics.runPhase.toLowerCase()}`
     : "";
-  return `nodes ${metrics.nodes} | active ${metrics.active} | frontier ${metrics.frontier} | expansions ${metrics.expansionsUsed}${runState}`;
+  const inFlight = metrics.inFlightExpectedChildCount > 0
+    ? ` | in-flight ${metrics.inFlightBuiltChildCount}/${metrics.inFlightExpectedChildCount}`
+    : "";
+  return `nodes ${metrics.nodes} | active ${metrics.active} | frontier ${metrics.frontier} | expansions ${metrics.expansionsUsed}${runState}${inFlight}`;
 }
 
 function formatDeltaSummary(deltas) {
