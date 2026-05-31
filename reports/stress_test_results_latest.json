@@ -1,0 +1,207 @@
+{
+  "generated_at": "2026-05-29 17:05:00",
+  "base_url": "http://127.0.0.1:8000",
+  "method": "frontend-live-page-create-run",
+  "live_backend": {
+    "base_url": "http://localhost:1234/api/v1/chat",
+    "model": "qwen3.6-35b-a3b-ud-mlx",
+    "timeout_seconds": 180,
+    "allow_live_model_fallback": false,
+    "prefer_local_fallback": false
+  },
+  "current_scheduler_shape": {
+    "root_route_scan_respects_child_surface_cap": true,
+    "presets": {
+      "low": {
+        "max_children_per_expansion": 2,
+        "max_live_children_per_batch": 2
+      },
+      "medium": {
+        "max_children_per_expansion": 3,
+        "max_live_children_per_batch": 2
+      },
+      "high": {
+        "max_children_per_expansion": 4,
+        "max_live_children_per_batch": 2
+      }
+    },
+    "in_flight_expansion_visible": true
+  },
+  "comparison": {
+    "baseline_pre_patch_10m": {
+      "generated_at": "2026-05-29 14:11:39",
+      "observation_minutes": 10.0,
+      "summary": {
+        "total_sessions": 9,
+        "busy_sessions": 4,
+        "ready_sessions": 0,
+        "error_sessions": 5,
+        "timeout_error_sessions": 5,
+        "avg_expansions": 9.33,
+        "avg_frontier": 4.22,
+        "avg_nodes": 18.0
+      }
+    },
+    "post_batched_live_cap_17m": {
+      "captured_at": "2026-05-29T09:02:45.306Z",
+      "observation_minutes": 17.0,
+      "summary": {
+        "total_sessions": 9,
+        "busy_sessions": 5,
+        "ready_sessions": 0,
+        "error_sessions": 4,
+        "timeout_error_sessions": 4,
+        "avg_expansions": 0.22,
+        "avg_frontier": 0.22,
+        "avg_nodes": 1.89
+      }
+    },
+    "delta": {
+      "timeout_errors": -1,
+      "timeout_error_rate_baseline": 55.56,
+      "timeout_error_rate_post_batch": 44.44,
+      "timeout_error_rate_delta_pp": -11.11,
+      "avg_expansions_delta": -9.11,
+      "avg_expansions_delta_pct": -97.64,
+      "avg_frontier_delta": -4.0,
+      "avg_frontier_delta_pct": -94.79,
+      "avg_nodes_delta": -16.11,
+      "avg_nodes_delta_pct": -89.5
+    }
+  },
+  "current_results": [
+    {
+      "problem_key": "spring_friction",
+      "preset": "low",
+      "session_id": "6db17f44d40e44908ebc1a5cbab4b05e",
+      "status": "busy",
+      "phase": "expanding-frontier",
+      "expansions": 1,
+      "frontier": 1,
+      "nodes": 3,
+      "last_error": "",
+      "in_flight": {
+        "expected": 2,
+        "built": 0,
+        "remaining": 2
+      }
+    },
+    {
+      "problem_key": "spring_friction",
+      "preset": "medium",
+      "session_id": "203bbc4e85e146eaadb8fd4bdde638c3",
+      "status": "error",
+      "phase": "error",
+      "expansions": 0,
+      "frontier": 0,
+      "nodes": 1,
+      "last_error": "proposal request to model 'qwen3.6-35b-a3b-ud-mlx' failed: Timed out after 180.0s waiting for chat backend at http://localhost:1234/api/v1/chat",
+      "in_flight": null
+    },
+    {
+      "problem_key": "spring_friction",
+      "preset": "high",
+      "session_id": "d3e4454a8a1f492b8ecb3a626aef646d",
+      "status": "busy",
+      "phase": "expanding-frontier",
+      "expansions": 0,
+      "frontier": 0,
+      "nodes": 3,
+      "last_error": "",
+      "in_flight": {
+        "expected": 3,
+        "built": 2,
+        "remaining": 1
+      }
+    },
+    {
+      "problem_key": "incline_friction",
+      "preset": "low",
+      "session_id": "f651e81d7dd84f799921a888d047216c",
+      "status": "error",
+      "phase": "error",
+      "expansions": 0,
+      "frontier": 0,
+      "nodes": 1,
+      "last_error": "proposal request to model 'qwen3.6-35b-a3b-ud-mlx' failed: Timed out after 180.0s waiting for chat backend at http://localhost:1234/api/v1/chat",
+      "in_flight": null
+    },
+    {
+      "problem_key": "incline_friction",
+      "preset": "medium",
+      "session_id": "49368025b20d48a69a2dc50b910ddd27",
+      "status": "error",
+      "phase": "error",
+      "expansions": 0,
+      "frontier": 0,
+      "nodes": 0,
+      "last_error": "evaluation request to model 'qwen3.6-35b-a3b-ud-mlx' failed: Timed out after 180.0s waiting for chat backend at http://localhost:1234/api/v1/chat",
+      "in_flight": null
+    },
+    {
+      "problem_key": "incline_friction",
+      "preset": "high",
+      "session_id": "0c00f273006b4e1daea23da408cf46bd",
+      "status": "error",
+      "phase": "error",
+      "expansions": 0,
+      "frontier": 0,
+      "nodes": 0,
+      "last_error": "evaluation request to model 'qwen3.6-35b-a3b-ud-mlx' failed: Timed out after 180.0s waiting for chat backend at http://localhost:1234/api/v1/chat",
+      "in_flight": null
+    },
+    {
+      "problem_key": "probability_same_color",
+      "preset": "low",
+      "session_id": "92da5ef710334f3bbdeca2719ad06482",
+      "status": "busy",
+      "phase": "expanding-frontier",
+      "expansions": 1,
+      "frontier": 1,
+      "nodes": 3,
+      "last_error": "",
+      "in_flight": {
+        "expected": 2,
+        "built": 0,
+        "remaining": 2
+      }
+    },
+    {
+      "problem_key": "probability_same_color",
+      "preset": "medium",
+      "session_id": "5e9ea9a0b4eb4d5ab54d837d564bb126",
+      "status": "busy",
+      "phase": "expanding-frontier",
+      "expansions": 0,
+      "frontier": 0,
+      "nodes": 3,
+      "last_error": "",
+      "in_flight": {
+        "expected": 3,
+        "built": 2,
+        "remaining": 1
+      }
+    },
+    {
+      "problem_key": "probability_same_color",
+      "preset": "high",
+      "session_id": "2656367be6884536b66ed19066442f00",
+      "status": "busy",
+      "phase": "expanding-frontier",
+      "expansions": 0,
+      "frontier": 0,
+      "nodes": 3,
+      "last_error": "",
+      "in_flight": {
+        "expected": 4,
+        "built": 2,
+        "remaining": 2
+      }
+    }
+  ],
+  "notes": [
+    "The pre-patch baseline row is preserved from the earlier 2026-05-29 live frontend report.",
+    "The post-batch row comes from the same 9-session frontend run after a clean server restart and a structured API capture at approximately 17 minutes.",
+    "An intermediate 10m/15m Playwright polling script completed, but its large-file artifact collapsed to an accessibility snapshot rather than structured JSON; the final structured capture above was taken directly from the same session set."
+  ]
+}

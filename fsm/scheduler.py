@@ -63,6 +63,11 @@ class ToTTreeScheduler:
         max_tree_depth: int = 8,
         max_frontier_size: int = 16,
         max_children_per_expansion: int = 6,
+        max_live_children_per_batch: Optional[int] = None,
+        use_local_root_proposal: bool = False,
+        use_local_root_evaluation: bool = False,
+        use_local_child_proposal: bool = False,
+        use_local_child_evaluation: bool = False,
         max_frontier_per_diversity_key: int = 4,
         children_key: str = "children",
         backend_adapter_factory: Optional[Callable[[dict[str, Any]], ReasoningBackendAdapter]] = None,
@@ -76,6 +81,8 @@ class ToTTreeScheduler:
             raise ValueError("max_frontier_size must be at least 1.")
         if max_children_per_expansion < 1:
             raise ValueError("max_children_per_expansion must be at least 1.")
+        if max_live_children_per_batch is not None and max_live_children_per_batch < 1:
+            raise ValueError("max_live_children_per_batch must be at least 1 when provided.")
         if max_frontier_per_diversity_key < 1:
             raise ValueError("max_frontier_per_diversity_key must be at least 1.")
 
@@ -85,6 +92,11 @@ class ToTTreeScheduler:
         self.max_tree_depth = max_tree_depth
         self.max_frontier_size = max_frontier_size
         self.max_children_per_expansion = max_children_per_expansion
+        self.max_live_children_per_batch = max_live_children_per_batch
+        self.use_local_root_proposal = bool(use_local_root_proposal)
+        self.use_local_root_evaluation = bool(use_local_root_evaluation)
+        self.use_local_child_proposal = bool(use_local_child_proposal)
+        self.use_local_child_evaluation = bool(use_local_child_evaluation)
         self.max_frontier_per_diversity_key = max_frontier_per_diversity_key
         self.children_key = children_key
         self.backend_adapter_factory = backend_adapter_factory
@@ -102,6 +114,8 @@ class ToTTreeScheduler:
         self.run_phase = "created"
         self.last_error = ""
         self.auto_run_requested = False
+        self._in_flight_expansion: Optional[dict[str, Any]] = None
+        self._pending_expansion: Optional[dict[str, Any]] = None
 
     def _set_run_state(
         self,
@@ -116,6 +130,110 @@ class ToTTreeScheduler:
             self.run_phase = str(phase)
         if last_error is not None:
             self.last_error = str(last_error)
+
+    def _live_child_batch_limit(self) -> int:
+        configured_limit = self.max_live_children_per_batch
+        if configured_limit is None:
+            return max(1, self.max_children_per_expansion)
+        return max(1, min(self.max_children_per_expansion, int(configured_limit)))
+
+    def _has_pending_expansion(self) -> bool:
+        return isinstance(self._pending_expansion, dict) and isinstance(
+            self._pending_expansion.get("parent_node"), ToTNode
+        )
+
+    def _start_pending_expansion(
+        self,
+        *,
+        parent_node: ToTNode,
+        problem_context: dict[str, Any],
+        depth: int,
+        child_contexts: list[dict[str, Any]],
+    ) -> None:
+        self._pending_expansion = {
+            "parent_node": parent_node,
+            "problem_context": problem_context,
+            "depth": depth,
+            "expected_child_count": len(child_contexts),
+            "remaining_child_contexts": list(child_contexts),
+            "built_children": [],
+        }
+        self._restore_in_flight_expansion_from_pending()
+
+    def _restore_in_flight_expansion_from_pending(self) -> None:
+        if not self._has_pending_expansion():
+            self._clear_in_flight_expansion()
+            return
+        pending_expansion = self._pending_expansion or {}
+        parent_node = pending_expansion["parent_node"]
+        depth = int(pending_expansion.get("depth", 0))
+        remaining_child_contexts = pending_expansion.get("remaining_child_contexts") or []
+        built_children = pending_expansion.get("built_children") or []
+        built_child_ids = [
+            child.id
+            for child, _child_context in built_children
+            if isinstance(child, ToTNode)
+        ]
+        self._in_flight_expansion = {
+            "parent_id": parent_node.id,
+            "parent_depth": depth,
+            "expected_child_count": max(
+                0,
+                int(
+                    pending_expansion.get(
+                        "expected_child_count",
+                        len(built_child_ids) + len(remaining_child_contexts),
+                    )
+                ),
+            ),
+            "built_child_count": len(built_child_ids),
+            "built_child_ids": built_child_ids,
+            "remaining_child_count": len(remaining_child_contexts),
+            "live_batch_limit": self._live_child_batch_limit(),
+        }
+
+    def _clear_pending_expansion(self) -> None:
+        self._pending_expansion = None
+        self._clear_in_flight_expansion()
+
+    def _begin_in_flight_expansion(
+        self,
+        *,
+        parent_node: ToTNode,
+        depth: int,
+        expected_child_count: int,
+        remaining_child_count: Optional[int] = None,
+    ) -> None:
+        self._in_flight_expansion = {
+            "parent_id": parent_node.id,
+            "parent_depth": depth,
+            "expected_child_count": max(0, int(expected_child_count)),
+            "built_child_count": 0,
+            "built_child_ids": [],
+            "remaining_child_count": max(
+                0,
+                int(expected_child_count if remaining_child_count is None else remaining_child_count),
+            ),
+            "live_batch_limit": self._live_child_batch_limit(),
+        }
+
+    def _note_in_flight_child(
+        self,
+        child_node: ToTNode,
+        *,
+        remaining_child_count: Optional[int] = None,
+    ) -> None:
+        if not isinstance(self._in_flight_expansion, dict):
+            return
+        built_child_ids = self._in_flight_expansion.setdefault("built_child_ids", [])
+        if isinstance(built_child_ids, list):
+            built_child_ids.append(child_node.id)
+            self._in_flight_expansion["built_child_count"] = len(built_child_ids)
+        if remaining_child_count is not None:
+            self._in_flight_expansion["remaining_child_count"] = max(0, int(remaining_child_count))
+
+    def _clear_in_flight_expansion(self) -> None:
+        self._in_flight_expansion = None
 
     def _prepare_root_problem_context_if_needed(self) -> None:
         if self._problem_context_prepared:
@@ -143,6 +261,10 @@ class ToTTreeScheduler:
     def run(self, progress_callback: Optional[Callable[[], None]] = None) -> dict[str, Any]:
         """Build the root node and expand the tree under scheduler constraints."""
         self._set_run_state(status="busy", phase="preparing-meta-task", last_error="")
+        if self._has_pending_expansion():
+            self._restore_in_flight_expansion_from_pending()
+        else:
+            self._clear_in_flight_expansion()
 
         try:
             self._prepare_root_problem_context_if_needed()
@@ -165,26 +287,57 @@ class ToTTreeScheduler:
                 if progress_callback is not None:
                     progress_callback()
 
-            while self._frontier and len(self._expanded_node_ids) < self.expansion_budget:
+            while self._has_pending_expansion() or (
+                self._frontier and len(self._expanded_node_ids) < self.expansion_budget
+            ):
                 self._set_run_state(status="busy", phase="expanding-frontier")
-                current = self._frontier.pop(0)
-                parent_node = current["node"]
-                problem_context = current["problem_context"]
-                depth = current["depth"]
+                if self._has_pending_expansion():
+                    pending_expansion = self._pending_expansion or {}
+                    self._restore_in_flight_expansion_from_pending()
+                else:
+                    current = self._frontier.pop(0)
+                    parent_node = current["node"]
+                    problem_context = current["problem_context"]
+                    depth = current["depth"]
 
-                child_contexts = self._extract_child_contexts(problem_context)
-                if not child_contexts:
-                    continue
+                    child_contexts = self._extract_child_contexts(problem_context)
+                    if not child_contexts:
+                        continue
 
-                self._expanded_node_ids.append(parent_node.id)
+                    self._expanded_node_ids.append(parent_node.id)
+                    self._start_pending_expansion(
+                        parent_node=parent_node,
+                        problem_context=problem_context,
+                        depth=depth,
+                        child_contexts=child_contexts,
+                    )
+                    pending_expansion = self._pending_expansion or {}
                 if progress_callback is not None:
                     progress_callback()
-                built_children: list[tuple[ToTNode, dict[str, Any]]] = []
-                for child_context in child_contexts:
+
+                parent_node = pending_expansion["parent_node"]
+                problem_context = pending_expansion["problem_context"]
+                depth = int(pending_expansion["depth"])
+                remaining_child_contexts = pending_expansion["remaining_child_contexts"]
+                built_children = pending_expansion["built_children"]
+                child_batch_limit = min(
+                    self._live_child_batch_limit(),
+                    len(remaining_child_contexts),
+                )
+                for _batch_index in range(child_batch_limit):
+                    child_context = remaining_child_contexts.pop(0)
                     child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
                     built_children.append((child_node, child_context))
+                    self._note_in_flight_child(
+                        child_node,
+                        remaining_child_count=len(remaining_child_contexts),
+                    )
                     if progress_callback is not None:
                         progress_callback()
+
+                if remaining_child_contexts:
+                    self._restore_in_flight_expansion_from_pending()
+                    break
 
                 ranked_children = sorted(
                     built_children,
@@ -278,12 +431,20 @@ class ToTTreeScheduler:
                         "frontier_size_after": len(self._frontier),
                     }
                 )
+                self._clear_pending_expansion()
                 if progress_callback is not None:
                     progress_callback()
         except Exception as exc:
+            self._clear_pending_expansion()
             self._set_run_state(status="error", phase="error", last_error=str(exc))
             raise
 
+        if self._has_pending_expansion():
+            self._restore_in_flight_expansion_from_pending()
+            self._set_run_state(status="busy", phase="expanding-frontier", last_error="")
+            return self.snapshot()
+
+        self._clear_pending_expansion()
         self._set_run_state(status="ready", phase=self._final_run_phase(), last_error="")
         return self.snapshot()
 
@@ -302,6 +463,11 @@ class ToTTreeScheduler:
             "max_tree_depth": self.max_tree_depth,
             "target_expansion_budget": self.target_expansion_budget,
             "remaining_budget": self.expansion_budget - len(self._expanded_node_ids),
+            "max_live_children_per_batch": self.max_live_children_per_batch,
+            "use_local_root_proposal": self.use_local_root_proposal,
+            "use_local_root_evaluation": self.use_local_root_evaluation,
+            "use_local_child_proposal": self.use_local_child_proposal,
+            "use_local_child_evaluation": self.use_local_child_evaluation,
             "run_state": {
                 "status": self.run_status,
                 "phase": self.run_phase,
@@ -309,6 +475,9 @@ class ToTTreeScheduler:
                 "auto_run_requested": self.auto_run_requested,
                 "target_expansion_budget": self.target_expansion_budget,
                 "last_error": self.last_error,
+                "in_flight_expansion": deepcopy(self._in_flight_expansion)
+                if isinstance(self._in_flight_expansion, dict)
+                else None,
             },
         }
 
@@ -501,6 +670,12 @@ class ToTTreeScheduler:
             problem_context=problem_context,
             max_reflections=self.max_reflections,
             backend_adapter=self._make_backend_adapter(problem_context),
+            use_local_proposal=(
+                self.use_local_child_proposal if parent_node is not None else self.use_local_root_proposal
+            ),
+            use_local_evaluation=(
+                self.use_local_child_evaluation if parent_node is not None else self.use_local_root_evaluation
+            ),
         )
         node = fsm.run()
         route_focus = problem_context.get("route_focus")
@@ -1471,8 +1646,6 @@ class ToTTreeScheduler:
     def _route_surface_budget(self, problem_context: Optional[dict[str, Any]] = None) -> int:
         if self.expansion_budget - len(self._expanded_node_ids) <= 0:
             return 0
-        if self._is_root_strategy_scan_route_surface(problem_context):
-            return max(1, self.max_frontier_size)
         return max(
             1,
             min(
@@ -1482,8 +1655,6 @@ class ToTTreeScheduler:
         )
 
     def _frontier_candidate_budget(self, problem_context: Optional[dict[str, Any]] = None) -> int:
-        if self._is_root_strategy_scan_route_surface(problem_context):
-            return max(1, self.max_frontier_size)
         # Cap only the sibling slice for this expansion. Frontier capacity is
         # enforced later in _rebalance_frontier so lower-scored but distinct
         # route families or correction modes can still compete for retention.
@@ -1592,8 +1763,21 @@ class ToTTreeScheduler:
             "max_tree_depth": self.max_tree_depth,
             "max_frontier_size": self.max_frontier_size,
             "max_children_per_expansion": self.max_children_per_expansion,
+            "max_live_children_per_batch": self.max_live_children_per_batch,
+            "use_local_root_proposal": self.use_local_root_proposal,
+            "use_local_root_evaluation": self.use_local_root_evaluation,
+            "use_local_child_proposal": self.use_local_child_proposal,
+            "use_local_child_evaluation": self.use_local_child_evaluation,
             "max_frontier_per_diversity_key": self.max_frontier_per_diversity_key,
             "children_key": self.children_key,
+            "problem_context_prepared": self._problem_context_prepared,
+            "target_expansion_budget": self.target_expansion_budget,
+            "run_status": self.run_status,
+            "run_phase": self.run_phase,
+            "last_error": self.last_error,
+            "auto_run_requested": self.auto_run_requested,
+            "in_flight_expansion": self._in_flight_expansion,
+            "pending_expansion": self._pending_expansion,
         }
         state = TreeSchedulerState(snapshot_blob=_serialize_blob(snapshot))
         path = Path(file_path)
@@ -1627,6 +1811,11 @@ class ToTTreeScheduler:
             max_tree_depth=snapshot.get("max_tree_depth", 8),
             max_frontier_size=snapshot["max_frontier_size"],
             max_children_per_expansion=snapshot["max_children_per_expansion"],
+            max_live_children_per_batch=snapshot.get("max_live_children_per_batch"),
+            use_local_root_proposal=bool(snapshot.get("use_local_root_proposal", False)),
+            use_local_root_evaluation=bool(snapshot.get("use_local_root_evaluation", False)),
+            use_local_child_proposal=bool(snapshot.get("use_local_child_proposal", False)),
+            use_local_child_evaluation=bool(snapshot.get("use_local_child_evaluation", False)),
             max_frontier_per_diversity_key=snapshot["max_frontier_per_diversity_key"],
             children_key=snapshot["children_key"],
             backend_adapter_factory=backend_adapter_factory,
@@ -1637,8 +1826,18 @@ class ToTTreeScheduler:
         scheduler._expansion_log = snapshot["expansion_log"]
         scheduler._expanded_node_ids = snapshot["expanded_node_ids"]
         scheduler._signature_registry = snapshot["signature_registry"]
+        scheduler._problem_context_prepared = bool(snapshot.get("problem_context_prepared", False))
+        scheduler.target_expansion_budget = int(snapshot.get("target_expansion_budget", scheduler.expansion_budget))
+        scheduler.run_status = str(snapshot.get("run_status", scheduler.run_status))
+        scheduler.run_phase = str(snapshot.get("run_phase", scheduler.run_phase))
+        scheduler.last_error = str(snapshot.get("last_error", scheduler.last_error))
+        scheduler.auto_run_requested = bool(snapshot.get("auto_run_requested", False))
+        scheduler._pending_expansion = snapshot.get("pending_expansion")
+        scheduler._in_flight_expansion = snapshot.get("in_flight_expansion")
         if scheduler.root_node is not None:
             scheduler._rebuild_node_index(scheduler.root_node)
+        if scheduler._has_pending_expansion():
+            scheduler._restore_in_flight_expansion_from_pending()
         return scheduler
 
     def _rebuild_node_index(self, node: ToTNode) -> None:

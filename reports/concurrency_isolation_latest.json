@@ -1,0 +1,302 @@
+{
+  "metadata": {
+    "date": "2026-05-29",
+    "api_base": "http://127.0.0.1:8000",
+    "model": "qwen3.6-35b-a3b-ud-mlx",
+    "backend_timeout_seconds": 180,
+    "observation_window_seconds": 360,
+    "scheduler": {
+      "max_live_children_per_batch": 2,
+      "use_local_child_evaluation": true
+    },
+    "notes": [
+      "9-session baseline and each grouped run used the same live backend model and scheduler presets.",
+      "The API server was restarted between grouped runs to remove in-flight work from the previous group."
+    ]
+  },
+  "nine_concurrent": {
+    "summary": {
+      "total_sessions": 9,
+      "busy_sessions": 9,
+      "ready_sessions": 0,
+      "error_sessions": 0,
+      "timeout_error_sessions": 0,
+      "avg_expansions": 0.0,
+      "avg_frontier": 0.0,
+      "avg_nodes": 1.0
+    },
+    "rows": [
+      {
+        "problem_key": "spring_friction",
+        "preset": "low",
+        "session_id": "dd3e7d4fcbdd461ca1c6a2626e16bd71",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "spring_friction",
+        "preset": "medium",
+        "session_id": "09915402c867492c999fd8e2d4341b2a",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "spring_friction",
+        "preset": "high",
+        "session_id": "0f6720aa11514c978a8277b9e4c5a90c",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "incline_friction",
+        "preset": "low",
+        "session_id": "c94750a715b641bb866dca98ec5ece70",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "incline_friction",
+        "preset": "medium",
+        "session_id": "00491f2573b04648a35b99f083a29980",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "incline_friction",
+        "preset": "high",
+        "session_id": "1e964a2c1ba841bba3b69ab6dc079afa",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "probability_same_color",
+        "preset": "low",
+        "session_id": "97c545ea9c2546bd8ff9fd3901162b15",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "probability_same_color",
+        "preset": "medium",
+        "session_id": "dd820d62af644a20b23aef36da6f4234",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      },
+      {
+        "problem_key": "probability_same_color",
+        "preset": "high",
+        "session_id": "361c1a44bb974159a94eb0f5f3db6e99",
+        "status": "busy",
+        "phase": "expanding-frontier",
+        "expansions": 0,
+        "frontier": 0,
+        "nodes": 1,
+        "last_error": ""
+      }
+    ]
+  },
+  "grouped_three_by_three": {
+    "aggregate_summary": {
+      "total_sessions": 9,
+      "busy_sessions": 9,
+      "ready_sessions": 0,
+      "error_sessions": 0,
+      "timeout_error_sessions": 0,
+      "avg_expansions": 0.89,
+      "avg_frontier": 1.44,
+      "avg_nodes": 3.89
+    },
+    "groups": [
+      {
+        "summary": {
+          "problem_key": "spring_friction",
+          "elapsed_seconds": 360,
+          "total_sessions": 3,
+          "busy_sessions": 3,
+          "ready_sessions": 0,
+          "error_sessions": 0,
+          "timeout_error_sessions": 0,
+          "avg_expansions": 1.0,
+          "avg_frontier": 1.67,
+          "avg_nodes": 4.0
+        },
+        "rows": [
+          {
+            "problem_key": "spring_friction",
+            "preset": "low",
+            "session_id": "c40f50334ac044a79eaff62d58bc8053",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 1,
+            "nodes": 4,
+            "last_error": ""
+          },
+          {
+            "problem_key": "spring_friction",
+            "preset": "medium",
+            "session_id": "28331be8f15746239ebcd3969ebc378b",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 2,
+            "nodes": 4,
+            "last_error": ""
+          },
+          {
+            "problem_key": "spring_friction",
+            "preset": "high",
+            "session_id": "5b55baa0f382458cbb2247d6dadf2f89",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 2,
+            "nodes": 4,
+            "last_error": ""
+          }
+        ]
+      },
+      {
+        "summary": {
+          "problem_key": "incline_friction",
+          "elapsed_seconds": 360,
+          "total_sessions": 3,
+          "busy_sessions": 3,
+          "ready_sessions": 0,
+          "error_sessions": 0,
+          "timeout_error_sessions": 0,
+          "avg_expansions": 1.0,
+          "avg_frontier": 1.67,
+          "avg_nodes": 4.0
+        },
+        "rows": [
+          {
+            "problem_key": "incline_friction",
+            "preset": "low",
+            "session_id": "85c6f117924a4088b75d5adffc7fd863",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 1,
+            "nodes": 4,
+            "last_error": ""
+          },
+          {
+            "problem_key": "incline_friction",
+            "preset": "medium",
+            "session_id": "2b260f312b754e59a7be7f7e39133971",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 2,
+            "nodes": 4,
+            "last_error": ""
+          },
+          {
+            "problem_key": "incline_friction",
+            "preset": "high",
+            "session_id": "f8eb947ed1654cbd9cbabcf79a5daa7f",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 2,
+            "nodes": 4,
+            "last_error": ""
+          }
+        ]
+      },
+      {
+        "summary": {
+          "problem_key": "probability_same_color",
+          "elapsed_seconds": 360,
+          "total_sessions": 3,
+          "busy_sessions": 3,
+          "ready_sessions": 0,
+          "error_sessions": 0,
+          "timeout_error_sessions": 0,
+          "avg_expansions": 0.67,
+          "avg_frontier": 1.0,
+          "avg_nodes": 3.67
+        },
+        "rows": [
+          {
+            "problem_key": "probability_same_color",
+            "preset": "low",
+            "session_id": "0d8a3b161e464a66816d9390f64fa90c",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 1,
+            "nodes": 3,
+            "last_error": ""
+          },
+          {
+            "problem_key": "probability_same_color",
+            "preset": "medium",
+            "session_id": "d08e6599cb604a41ab389bb20d3a9550",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 1,
+            "frontier": 2,
+            "nodes": 4,
+            "last_error": ""
+          },
+          {
+            "problem_key": "probability_same_color",
+            "preset": "high",
+            "session_id": "0a0792007eed436494917846096fc5a4",
+            "status": "busy",
+            "phase": "expanding-frontier",
+            "expansions": 0,
+            "frontier": 0,
+            "nodes": 4,
+            "last_error": ""
+          }
+        ]
+      }
+    ]
+  },
+  "comparison": {
+    "delta_avg_expansions": 0.89,
+    "delta_avg_frontier": 1.44,
+    "delta_avg_nodes": 2.89,
+    "interpretation": [
+      "With 9 concurrent live sessions, none of the sessions completed their first logged expansion within 6 minutes.",
+      "With only 3 concurrent live sessions, every group progressed to child creation and at least one logged expansion for most sessions in the same 6-minute window.",
+      "Because the scheduler code path was the same in both scenarios and only the number of simultaneously active live sessions changed, the dominant bottleneck is model-service throughput under concurrency, not scheduler bookkeeping alone.",
+      "Remaining latency is still meaningful even in the grouped runs, because all grouped sessions stayed busy after 6 minutes; root build plus the first live child proposal batch is still too expensive."
+    ]
+  }
+}

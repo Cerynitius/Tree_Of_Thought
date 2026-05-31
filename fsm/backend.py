@@ -6,6 +6,7 @@ from copy import deepcopy
 from difflib import get_close_matches
 from importlib import import_module
 import json
+import re
 import requests
 import socket
 import time
@@ -53,8 +54,20 @@ DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS = (
     "consistency checked against limits and constraints",
 )
 DEFAULT_REASONING_DEPTH_PRESET = "medium"
-LOW_META_ANALYSIS_STEP_ORDERING = DEFAULT_META_ANALYSIS_STEP_ORDERING[:5]
-LOW_META_ANALYSIS_COMPLETION_SIGNALS = DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS[:5]
+LOW_META_ANALYSIS_STEP_ORDERING = (
+    "identify governing relation",
+    "express the target quantity in known variables",
+    "introduce one missing constitutive relation or closure",
+    "reduce to one solvable local relation",
+    "extract one candidate answer expression",
+)
+LOW_META_ANALYSIS_COMPLETION_SIGNALS = (
+    "one route-local seed selected",
+    "target quantity expressed in known variables",
+    "one constitutive relation or closure added",
+    "one solvable local relation isolated",
+    "one candidate answer expression extracted",
+)
 HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING = (
     "stress one unresolved assumption against an alternative local closure",
     "compare surviving candidate answer forms and keep one",
@@ -64,6 +77,23 @@ HIGH_META_ANALYSIS_EXTRA_COMPLETION_SIGNALS = (
     "surviving candidate answer forms compared and one kept",
 )
 MIN_META_ANALYSIS_STEP_COUNT = len(DEFAULT_META_ANALYSIS_STEP_ORDERING)
+META_EQUATION_PREFIXES = ("step_focus(", "refine(", "route(", "guidance(", "task(", "local_step_")
+META_ANSWER_TEXT_PATTERNS = (
+    re.compile(r"\bidentify governing relation\b", re.IGNORECASE),
+    re.compile(r"\bchoose one active correction or closure\b", re.IGNORECASE),
+    re.compile(r"\bintroduce one missing constitutive relation or closure\b", re.IGNORECASE),
+    re.compile(r"\broute-local planning claim\b", re.IGNORECASE),
+    re.compile(r"\brefine only the current subproblem\b", re.IGNORECASE),
+    re.compile(r"\bselect\s+.+\s+route\b", re.IGNORECASE),
+)
+TERMINAL_ANSWER_KNOWN_VAR_KEYS = ("final_answer", "candidate_answer", "answer", "result")
+TERMINAL_ANSWER_CLASSIFICATION_KEYWORDS = (
+    "underdamped",
+    "critically damped",
+    "overdamped",
+    "stable",
+    "unstable",
+)
 
 ChatRequester = Callable[[str, dict[str, Any], float], Any]
 
@@ -93,13 +123,13 @@ def _fallback_stage_prompt_contract(stage: str) -> dict[str, Any]:
         "proposal": {
             "prompt_fragment": (
                 "You are the ToT modeling model. Return only a JSON object with keys thought_step, equations, known_vars, used_models, quantities, boundary_conditions. "
-                "Produce exactly one minimal next-step candidate. Do not solve the whole problem or emit multiple alternatives. If the current phase is strategy_scan, stay route-local and atomic: do not compare many routes inside one node, and state only one short planning claim for the selected route. If the current phase is a non-terminal incremental_refinement and a parent node is present, the new step must add exactly one explicit local delta beyond the parent: one correction, one boundary condition, or one control parameter. The thought_step itself must name that new local delta and must not paraphrase the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. Do not use markdown."
+                "Produce exactly one minimal next-step candidate. Do not solve the whole problem or emit multiple alternatives. If the current phase is strategy_scan, stay route-local and atomic: do not compare many routes inside one node, and state only one short planning claim for the selected route. If the current phase is a non-terminal incremental_refinement and a parent node is present, the new step must add exactly one explicit local delta beyond the parent: one correction, one boundary condition, or one control parameter. The thought_step itself must name that new local delta and must not paraphrase the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. If request.problem_context.meta_task_progress.is_terminal_step is true, stop deferring the solution: return one explicit candidate answer expression or one final governing relation for the selected route, write any concrete answer into known_vars.final_answer and known_vars.candidate_answer, and do not emit meta placeholders such as step_focus(...), refine(...), route(...), guidance(...), or task(...). Do not use markdown."
             )
         },
         "reflection": {
             "prompt_fragment": (
                 "You are the ToT modeling model refining an existing branch. Return only a JSON object with keys thought_step, equations, known_vars, used_models, quantities, boundary_conditions. "
-                "Make exactly one local revision step. Do not restart the full solution. If the current phase is strategy_scan, keep the revision route-local and atomic. If the latest critique says the child repeated its parent, fix that by adding exactly one explicit local delta: one correction, one boundary condition, or one control parameter. The revised thought_step itself must name that delta instead of paraphrasing the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. Do not use markdown."
+                "Make exactly one local revision step. Do not restart the full solution. If the current phase is strategy_scan, keep the revision route-local and atomic. If the latest critique says the child repeated its parent, fix that by adding exactly one explicit local delta: one correction, one boundary condition, or one control parameter. The revised thought_step itself must name that delta instead of paraphrasing the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. If request.problem_context.meta_task_progress.is_terminal_step is true, the revision must end in one explicit candidate answer expression or final relation and should preserve concrete answer fields in known_vars.final_answer and known_vars.candidate_answer when available. Do not use markdown."
             )
         },
         "evaluation": {
@@ -197,10 +227,17 @@ def _build_meta_task_progress(
         remaining_steps = [str(item) for item in progress.get("remaining_steps", []) if str(item).strip()]
 
     phase = "strategy_scan" if current_step_index == 0 else "incremental_refinement"
+    is_terminal_step = bool(step_ordering) and current_step_index >= total_steps - 1
     if phase == "strategy_scan":
         current_step_guidance = (
             "Analyze the next-step strategy space at planning level. "
             "Make one route-local planning claim only, keep all other routes deferred, and do not solve the final answer yet."
+        )
+    elif is_terminal_step:
+        current_step_guidance = (
+            f"This is the terminal step for the selected route: {current_step}. "
+            "Collapse the route into one explicit candidate answer expression or final governing relation. "
+            "If a concrete numeric, symbolic, or classification answer is available, write it in known_vars.final_answer and known_vars.candidate_answer, and keep equations non-meta."
         )
     else:
         current_step_guidance = (
@@ -216,7 +253,7 @@ def _build_meta_task_progress(
         "remaining_steps": remaining_steps,
         "total_steps": total_steps,
         "phase": phase,
-        "is_terminal_step": bool(step_ordering) and current_step_index >= total_steps - 1,
+        "is_terminal_step": is_terminal_step,
         "route_options": _coerce_structured_reasoning_list(meta_task.get("route_options", [])),
         "step_blueprints": _coerce_structured_reasoning_list(meta_task.get("step_blueprints", [])),
     }
@@ -230,6 +267,24 @@ def _propagate_meta_task(
 ) -> dict[str, Any]:
     normalized_context = deepcopy(problem_context)
     normalized_meta_task = _coerce_model_payload(MetaAnalysisPayload, dict(meta_task))
+    reasoning_depth_preset = str(normalized_context.get("reasoning_depth_preset", "")).strip().lower()
+    if reasoning_depth_preset == "low":
+        incoming_step_ordering = _coerce_string_list(meta_task.get("step_ordering", []))
+        if incoming_step_ordering:
+            normalized_meta_task["first_step"] = incoming_step_ordering[0]
+            normalized_meta_task["step_ordering"] = incoming_step_ordering
+            normalized_meta_task["minimal_subproblems"] = _dedupe_string_sequence(
+                [*_coerce_string_list(meta_task.get("minimal_subproblems", [])), *incoming_step_ordering]
+            )
+            incoming_completion_signals = _coerce_string_list(meta_task.get("completion_signals", []))
+            if incoming_completion_signals:
+                normalized_meta_task["completion_signals"] = incoming_completion_signals[: len(incoming_step_ordering)]
+            incoming_route_options = _coerce_structured_reasoning_list(meta_task.get("route_options", []))
+            if incoming_route_options:
+                normalized_meta_task["route_options"] = incoming_route_options
+            incoming_step_blueprints = _coerce_structured_reasoning_list(meta_task.get("step_blueprints", []))
+            if incoming_step_blueprints:
+                normalized_meta_task["step_blueprints"] = incoming_step_blueprints
     normalized_context["meta_task"] = normalized_meta_task
     normalized_context["meta_task_progress"] = _build_meta_task_progress(
         normalized_meta_task,
@@ -244,6 +299,8 @@ def _propagate_meta_task(
         for item in children:
             if isinstance(item, dict):
                 child_context = deepcopy(item)
+                if "reasoning_depth_preset" not in child_context and reasoning_depth_preset:
+                    child_context["reasoning_depth_preset"] = reasoning_depth_preset
                 child_meta_task = child_context.get("meta_task")
                 if not isinstance(child_meta_task, dict) or not child_meta_task:
                     child_meta_task = meta_task
@@ -1220,6 +1277,8 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
     REASONING_SHORT_LIST_LIMIT = 3
     REASONING_MAP_LIMIT = 6
     LOCAL_ROUTE_SCAN_TEXT_LIMIT = 2400
+    ROOT_LIVE_PROPOSAL_TIMEOUT_CAP_SECONDS = 75.0
+    ROOT_LIVE_EVALUATION_TIMEOUT_CAP_SECONDS = 30.0
     LOCAL_META_ANALYSIS_STEP_ORDERING = DEFAULT_META_ANALYSIS_STEP_ORDERING
     LOCAL_META_ANALYSIS_COMPLETION_SIGNALS = DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS
 
@@ -1274,10 +1333,39 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
 
         # Keep the full problem statement off the planning/orchestration path at
         # session creation time by generating the root meta-task locally.
+        meta_task = self._build_local_meta_analysis(normalized_context)
         return _propagate_meta_task(
             normalized_context,
-            self._build_local_meta_analysis(normalized_context),
+            self._enforce_reasoning_depth_profile(meta_task, normalized_context),
         )
+
+    def _enforce_reasoning_depth_profile(
+        self,
+        meta_task: dict[str, Any],
+        problem_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        profile = self._meta_analysis_profile(problem_context)
+        if profile.get("preset") != "low":
+            return meta_task
+
+        normalized = dict(meta_task)
+        step_ordering = list(profile["step_ordering"])
+        route_options = _coerce_structured_reasoning_list(normalized.get("route_options", []))[: int(profile["max_route_options"])]
+        normalized["first_step"] = step_ordering[0]
+        normalized["step_ordering"] = step_ordering
+        normalized["minimal_subproblems"] = _dedupe_string_sequence(
+            [*_coerce_string_list(normalized.get("minimal_subproblems", [])), *step_ordering]
+        )
+        normalized["completion_signals"] = _dedupe_string_sequence(
+            [*_coerce_string_list(normalized.get("completion_signals", [])), *profile["completion_signals"]]
+        )[: len(step_ordering)]
+        normalized["route_options"] = route_options
+        normalized["step_blueprints"] = self._derive_fast_local_step_blueprints(
+            first_step=step_ordering[0],
+            route_options=route_options,
+            step_ordering=step_ordering,
+        )
+        return normalized
 
     def _should_use_local_fast_meta_analysis(self, problem_context: dict[str, Any]) -> bool:
         allowed_keys = {
@@ -1795,12 +1883,15 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             request.attempt_index,
         )
         if explicit_payload is not None:
-            return explicit_payload
+            return self._postprocess_proposal_payload(request.problem_context, explicit_payload)
 
         if self._should_skip_live_model_call(request.problem_context):
-            return self._build_local_proposal_payload(
+            return self._postprocess_proposal_payload(
+                request.problem_context,
+                self._build_local_proposal_payload(
                 request,
                 fallback_reason=self._live_model_fallback_reason,
+                ),
             )
 
         modeling_request, orchestrator_task = self._prepare_modeling_request(
@@ -1819,14 +1910,15 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
                 known_vars = dict(proposal.get("known_vars", {}))
                 known_vars["orchestrator_task"] = dict(orchestrator_task)
                 proposal["known_vars"] = known_vars
-            return proposal
+            return self._postprocess_proposal_payload(modeling_request.problem_context, proposal)
         try:
             proposal = self._call_chat_model(
                 stage="proposal",
                 model=self._select_modeling_model_for_request(modeling_request.problem_context),
-                system_prompt=self._stage_system_prompt("proposal"),
+                system_prompt=self._stage_system_prompt("proposal", contract_context=modeling_request.problem_context),
                 input_payload={"stage": "proposal", "request": compact_request},
                 response_model=ProposalPayload,
+                client=self._chat_client_for_proposal_request(modeling_request),
             )
         except ChatBackendError as exc:
             if not self._should_use_live_model_fallback(modeling_request.problem_context):
@@ -1837,7 +1929,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             known_vars = dict(proposal.get("known_vars", {}))
             known_vars["orchestrator_task"] = dict(orchestrator_task)
             proposal["known_vars"] = known_vars
-        return proposal
+        return self._postprocess_proposal_payload(modeling_request.problem_context, proposal)
 
     def evaluate(self, request: EvaluationRequest) -> dict[str, Any]:
         explicit_payload = self._select_explicit_stage_payload(
@@ -1857,13 +1949,24 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             return self._call_chat_model(
                 stage="evaluation",
                 model=self._select_evaluation_model_for_request(request.problem_context),
-                system_prompt=self._stage_system_prompt("evaluation"),
+                system_prompt=self._stage_system_prompt("evaluation", contract_context=request.problem_context),
                 input_payload={
                     "stage": "evaluate",
                     "request": self._build_compact_reasoning_request(stage="evaluation", request=request),
                 },
                 response_model=EvaluationPayload,
+                client=self._chat_client_for_evaluation_request(request),
             )
+        except ChatBackendTransportError as exc:
+            if self._should_rescue_root_live_evaluation(request, exc):
+                return self._build_local_evaluation_payload(
+                    request,
+                    fallback_reason=f"root live evaluation timeout; continuing with local review. {exc}",
+                )
+            if not self._should_use_live_model_fallback(request.problem_context):
+                raise
+            self._remember_live_model_fallback(exc)
+            return self._build_local_evaluation_payload(request, fallback_reason=str(exc))
         except ChatBackendError as exc:
             if not self._should_use_live_model_fallback(request.problem_context):
                 raise
@@ -1917,7 +2020,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             reflection = self._call_chat_model(
                 stage="reflection",
                 model=self._select_modeling_model_for_request(modeling_request.problem_context),
-                system_prompt=self._stage_system_prompt("reflection"),
+                system_prompt=self._stage_system_prompt("reflection", contract_context=modeling_request.problem_context),
                 input_payload={"stage": "reflect", "request": compact_request},
                 response_model=ReflectionPayload,
             )
@@ -1931,6 +2034,45 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             known_vars["orchestrator_task"] = dict(orchestrator_task)
             reflection["known_vars"] = known_vars
         return reflection
+
+    def _chat_client_for_proposal_request(self, request: ProposalRequest) -> LocalChatAPIClient:
+        if request.parent_node is not None:
+            return self.client
+        return self._chat_client_with_timeout_cap(self.ROOT_LIVE_PROPOSAL_TIMEOUT_CAP_SECONDS)
+
+    def _chat_client_for_evaluation_request(self, request: EvaluationRequest) -> LocalChatAPIClient:
+        if not self._is_root_evaluation_request(request):
+            return self.client
+        return self._chat_client_with_timeout_cap(self.ROOT_LIVE_EVALUATION_TIMEOUT_CAP_SECONDS)
+
+    def _chat_client_with_timeout_cap(self, timeout_cap: float) -> LocalChatAPIClient:
+        effective_timeout = min(float(self.client.timeout), float(timeout_cap))
+        if effective_timeout >= float(self.client.timeout):
+            return self.client
+        return LocalChatAPIClient(
+            base_url=self.client.base_url,
+            timeout=effective_timeout,
+            max_retries=self.client.max_retries,
+            retry_backoff_seconds=self.client.retry_backoff_seconds,
+            requester=self.client._requester,
+        )
+
+    @staticmethod
+    def _is_root_evaluation_request(request: EvaluationRequest) -> bool:
+        return not str(request.current_node.parent_id or "").strip()
+
+    @classmethod
+    def _should_rescue_root_live_evaluation(
+        cls,
+        request: EvaluationRequest,
+        exc: ChatBackendTransportError,
+    ) -> bool:
+        return cls._is_root_evaluation_request(request) and cls._is_timeout_transport_error(exc)
+
+    @staticmethod
+    def _is_timeout_transport_error(exc: ChatBackendTransportError) -> bool:
+        details = f"{exc} {exc.response_body}".lower()
+        return "timed out after" in details
 
     def _should_use_live_model_fallback(self, problem_context: dict[str, Any]) -> bool:
         if not self._allow_live_model_fallback:
@@ -2069,6 +2211,146 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
                 self.REASONING_SHORT_TEXT_LIMIT,
             )
         return proposal
+
+    def _postprocess_proposal_payload(
+        self,
+        problem_context: dict[str, Any],
+        proposal: dict[str, Any],
+    ) -> dict[str, Any]:
+        normalized = dict(proposal)
+        known_vars = dict(normalized.get("known_vars", {}))
+        normalized["known_vars"] = known_vars
+
+        if not self._is_terminal_meta_task_context(problem_context):
+            return normalized
+
+        candidate_text, candidate_source = self._extract_terminal_answer_candidate(normalized)
+        if not candidate_text:
+            return normalized
+
+        for key in TERMINAL_ANSWER_KNOWN_VAR_KEYS:
+            known_vars.setdefault(key, candidate_text)
+
+        concrete_equations = self._concrete_equation_lines(normalized.get("equations", []))
+        if not concrete_equations and candidate_source != "equations" and self._looks_like_answer_text(candidate_text):
+            normalized["equations"] = [candidate_text]
+
+        return normalized
+
+    def _extract_terminal_answer_candidate(self, proposal: dict[str, Any]) -> tuple[str, str]:
+        known_vars = proposal.get("known_vars")
+        if isinstance(known_vars, dict):
+            direct_answer = self._extract_answer_text_from_mapping(known_vars)
+            if direct_answer:
+                return direct_answer, "known_vars"
+
+        for field_name in ("quantities", "boundary_conditions"):
+            field_value = proposal.get(field_name)
+            if isinstance(field_value, dict):
+                direct_answer = self._extract_answer_text_from_mapping(field_value)
+                if direct_answer:
+                    return direct_answer, field_name
+
+        concrete_equations = self._concrete_equation_lines(proposal.get("equations", []))
+        if concrete_equations:
+            return "\n".join(concrete_equations[:2]), "equations"
+
+        thought_step = self._normalize_answer_text(proposal.get("thought_step", ""))
+        if thought_step and self._looks_like_answer_text(thought_step):
+            return thought_step, "thought_step"
+
+        return "", ""
+
+    def _extract_answer_text_from_mapping(self, mapping: dict[str, Any]) -> str:
+        for key in TERMINAL_ANSWER_KNOWN_VAR_KEYS:
+            if key not in mapping:
+                continue
+            candidate = self._normalize_answer_text(self._format_answer_value(mapping[key]))
+            if candidate:
+                return candidate
+
+        for key, value in mapping.items():
+            normalized_key = str(key).strip().lower()
+            if not any(token in normalized_key for token in ("answer", "result", "solution", "output", "value")):
+                continue
+            candidate = self._normalize_answer_text(self._format_answer_value(value))
+            if candidate:
+                return candidate
+        return ""
+
+    @classmethod
+    def _concrete_equation_lines(cls, equations: Any) -> list[str]:
+        if not isinstance(equations, list):
+            return []
+        concrete_lines: list[str] = []
+        for item in equations:
+            line = cls._normalize_answer_text(item)
+            if not line or cls._is_meta_equation_text(line):
+                continue
+            concrete_lines.append(line)
+        return concrete_lines
+
+    @staticmethod
+    def _format_answer_value(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float, bool)):
+            return str(value)
+        if isinstance(value, list):
+            return "\n".join(
+                part
+                for part in (LocalChatDualModelBackendAdapter._format_answer_value(item) for item in value)
+                if part
+            )
+        if isinstance(value, dict):
+            return "\n".join(
+                f"{key}: {formatted}"
+                for key, formatted in (
+                    (str(key), LocalChatDualModelBackendAdapter._format_answer_value(item))
+                    for key, item in value.items()
+                )
+                if formatted
+            )
+        return str(value).strip()
+
+    @staticmethod
+    def _normalize_answer_text(value: Any) -> str:
+        return "\n".join(
+            line
+            for line in (str(part).strip() for part in str(value or "").splitlines())
+            if line
+        )
+
+    @staticmethod
+    def _is_meta_equation_text(text: str) -> bool:
+        normalized = str(text or "").strip().lower()
+        return bool(normalized) and normalized.startswith(META_EQUATION_PREFIXES)
+
+    @classmethod
+    def _looks_like_answer_text(cls, text: str) -> bool:
+        normalized = cls._normalize_answer_text(text)
+        if not normalized or cls._is_meta_answer_text(normalized):
+            return False
+        lowered = normalized.lower()
+        if any(keyword in lowered for keyword in TERMINAL_ANSWER_CLASSIFICATION_KEYWORDS):
+            return True
+        if re.search(r"\b\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\b", normalized):
+            return True
+        if any(symbol in normalized for symbol in ("=", "≈", "≃", "<", ">", "≤", "≥")):
+            return True
+        return bool(re.search(r"\b(answer|result|probability|distance|speed|frequency|energy|force|displacement)\b", lowered))
+
+    @staticmethod
+    def _is_meta_answer_text(text: str) -> bool:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return False
+        lowered = normalized.lower()
+        if lowered.startswith(META_EQUATION_PREFIXES):
+            return True
+        return any(pattern.search(normalized) for pattern in META_ANSWER_TEXT_PATTERNS)
 
     def _select_modeling_model_for_request(self, problem_context: dict[str, Any]) -> str:
         if self._is_planning_only_modeling_context(problem_context):
@@ -3109,15 +3391,17 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         system_prompt: str,
         input_payload: dict[str, Any],
         response_model: type[BaseModel],
+        client: Optional[LocalChatAPIClient] = None,
     ) -> dict[str, Any]:
         serialized_input = json.dumps(input_payload, ensure_ascii=False, sort_keys=True)
         attempted_models: list[str] = []
         last_transport_exc: Optional[ChatBackendTransportError] = None
+        active_client = client or self.client
 
         for candidate_model in self._stage_model_candidates(stage=stage, requested_model=model):
             attempted_models.append(candidate_model)
             try:
-                raw_response = self.client.chat(
+                raw_response = active_client.chat(
                     model=candidate_model,
                     system_prompt=system_prompt,
                     input_text=serialized_input,
@@ -3325,6 +3609,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         *,
         contract_context: Optional[dict[str, Any]] = None,
     ) -> str:
+        normalized_stage = str(stage).strip().lower()
         contract = _load_stage_prompt_contract_with_context(stage, contract_context=contract_context)
         prompt_fragment = str(contract.get("prompt_fragment", "Return only a JSON object. Do not use markdown."))
         output_contract = cls._stage_output_contract(stage)
@@ -3372,6 +3657,12 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             instructions.append(
                 f"Use JSON booleans, not strings, for boolean fields: {', '.join(output_contract['boolean_fields'])}."
             )
+        if normalized_stage in {"proposal", "reflection"} and isinstance(contract_context, dict):
+            meta_task_progress = contract_context.get("meta_task_progress")
+            if isinstance(meta_task_progress, dict) and bool(meta_task_progress.get("is_terminal_step", False)):
+                instructions.append(
+                    "Because request.problem_context.meta_task_progress.is_terminal_step is true, stop deferring the solution: return one explicit candidate answer expression or final governing relation for the selected route, write any concrete answer into known_vars.final_answer and known_vars.candidate_answer, and keep equations non-meta."
+                )
         return f"{prompt_fragment} {' '.join(instructions)}"
 
     def _validate_or_repair_payload(
