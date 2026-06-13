@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from difflib import get_close_matches
 from importlib import import_module
 import json
-import requests
-import socket
+import re
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, Field
 
@@ -24,14 +20,42 @@ from .models import (
     ProposalPayload,
     ReflectionPayload,
 )
-from .utils import _model_field_names
+from .utils import META_TASK_STRATEGY_SCAN_GUIDANCE, _build_model, _model_dump, _model_field_names
+from .errors import (
+    ChatBackendError,
+    ChatBackendResponseError,
+    ChatBackendTransportError,
+    TRANSIENT_HTTP_STATUS_CODES,
+)
+from .chat_client import (
+    ChatRequester,
+    DEFAULT_CHAT_API_URL,
+    LocalChatAPIClient,
+    make_openai_requester,
+)
+from .payloads import (
+    _coerce_evaluation_field_aliases,
+    _coerce_mapping,
+    _coerce_optional_number,
+    _coerce_optional_number_or_none,
+    _coerce_string_list,
+    _coerce_string_scalar,
+    _coerce_structured_reasoning_item,
+    _coerce_structured_reasoning_list,
+    _content_to_text,
+    _dedupe_string_sequence,
+    _dedupe_structured_reasoning_items,
+    _extract_balanced_json_object_candidates,
+    _extract_json_payload,
+    _normalize_chat_payload,
+    _serialize_raw_response_for_repair,
+    _truncate_compact_text,
+)
 
-DEFAULT_CHAT_API_URL = "http://localhost:1234/api/v1/chat"
 DEFAULT_PLANNING_MODEL = "qwen3.5-9b-mlx"
 DEFAULT_MODELING_MODEL = "qwen3.5-9b-mlx"
 DEFAULT_REVIEW_MODEL = "qwen3.5-9b-mlx"
 DEFAULT_NON_TERMINAL_EVALUATION_MODEL = "qwen3.5-9b-mlx"
-TRANSIENT_HTTP_STATUS_CODES = frozenset({408, 425, 429, 500, 502, 503, 504})
 DEFAULT_META_ANALYSIS_STEP_ORDERING = (
     "identify governing relation",
     "choose one active correction or closure",
@@ -52,10 +76,47 @@ DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS = (
     "one candidate answer expression extracted",
     "consistency checked against limits and constraints",
 )
+DEFAULT_REASONING_DEPTH_PRESET = "medium"
+LOW_META_ANALYSIS_STEP_ORDERING = (
+    "identify governing relation",
+    "express the target quantity in known variables",
+    "introduce one missing constitutive relation or closure",
+    "reduce to one solvable local relation",
+    "extract one candidate answer expression",
+)
+LOW_META_ANALYSIS_COMPLETION_SIGNALS = (
+    "one route-local seed selected",
+    "target quantity expressed in known variables",
+    "one constitutive relation or closure added",
+    "one solvable local relation isolated",
+    "one candidate answer expression extracted",
+)
+HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING = (
+    "stress one unresolved assumption against an alternative local closure",
+    "compare surviving candidate answer forms and keep one",
+)
+HIGH_META_ANALYSIS_EXTRA_COMPLETION_SIGNALS = (
+    "one unresolved assumption stressed against an alternative local closure",
+    "surviving candidate answer forms compared and one kept",
+)
 MIN_META_ANALYSIS_STEP_COUNT = len(DEFAULT_META_ANALYSIS_STEP_ORDERING)
-
-ChatRequester = Callable[[str, dict[str, Any], float], Any]
-
+META_EQUATION_PREFIXES = ("step_focus(", "refine(", "route(", "guidance(", "task(", "local_step_")
+META_ANSWER_TEXT_PATTERNS = (
+    re.compile(r"\bidentify governing relation\b", re.IGNORECASE),
+    re.compile(r"\bchoose one active correction or closure\b", re.IGNORECASE),
+    re.compile(r"\bintroduce one missing constitutive relation or closure\b", re.IGNORECASE),
+    re.compile(r"\broute-local planning claim\b", re.IGNORECASE),
+    re.compile(r"\brefine only the current subproblem\b", re.IGNORECASE),
+    re.compile(r"\bselect\s+.+\s+route\b", re.IGNORECASE),
+)
+TERMINAL_ANSWER_KNOWN_VAR_KEYS = ("final_answer", "candidate_answer", "answer", "result")
+TERMINAL_ANSWER_CLASSIFICATION_KEYWORDS = (
+    "underdamped",
+    "critically damped",
+    "overdamped",
+    "stable",
+    "unstable",
+)
 
 def _fallback_stage_prompt_contract(stage: str) -> dict[str, Any]:
     normalized_stage = str(stage).strip().lower()
@@ -82,13 +143,13 @@ def _fallback_stage_prompt_contract(stage: str) -> dict[str, Any]:
         "proposal": {
             "prompt_fragment": (
                 "You are the ToT modeling model. Return only a JSON object with keys thought_step, equations, known_vars, used_models, quantities, boundary_conditions. "
-                "Produce exactly one minimal next-step candidate. Do not solve the whole problem or emit multiple alternatives. If the current phase is strategy_scan, stay route-local and atomic: do not compare many routes inside one node, and state only one short planning claim for the selected route. If the current phase is a non-terminal incremental_refinement and a parent node is present, the new step must add exactly one explicit local delta beyond the parent: one correction, one boundary condition, or one control parameter. The thought_step itself must name that new local delta and must not paraphrase the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. Do not use markdown."
+                "Produce exactly one minimal next-step candidate. Do not solve the whole problem or emit multiple alternatives. If the current phase is strategy_scan, stay route-local and atomic: do not compare many routes inside one node, and state only one short planning claim for the selected route. If the current phase is a non-terminal incremental_refinement and a parent node is present, the new step must add exactly one explicit local delta beyond the parent: one correction, one boundary condition, or one control parameter. The thought_step itself must name that new local delta and must not paraphrase the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. If request.problem_context.meta_task_progress.is_terminal_step is true, stop deferring the solution: return one explicit candidate answer expression or one final governing relation for the selected route, write any concrete answer into known_vars.final_answer and known_vars.candidate_answer, and do not emit meta placeholders such as step_focus(...), refine(...), route(...), guidance(...), or task(...). Do not use markdown."
             )
         },
         "reflection": {
             "prompt_fragment": (
                 "You are the ToT modeling model refining an existing branch. Return only a JSON object with keys thought_step, equations, known_vars, used_models, quantities, boundary_conditions. "
-                "Make exactly one local revision step. Do not restart the full solution. If the current phase is strategy_scan, keep the revision route-local and atomic. If the latest critique says the child repeated its parent, fix that by adding exactly one explicit local delta: one correction, one boundary condition, or one control parameter. The revised thought_step itself must name that delta instead of paraphrasing the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. Do not use markdown."
+                "Make exactly one local revision step. Do not restart the full solution. If the current phase is strategy_scan, keep the revision route-local and atomic. If the latest critique says the child repeated its parent, fix that by adding exactly one explicit local delta: one correction, one boundary condition, or one control parameter. The revised thought_step itself must name that delta instead of paraphrasing the parent claim. Surface that same delta in equations, quantities, boundary_conditions, or known_vars with a short explicit marker such as active_correction, active_boundary_condition, or active_control_parameter. If request.problem_context.meta_task_progress.is_terminal_step is true, the revision must end in one explicit candidate answer expression or final relation and should preserve concrete answer fields in known_vars.final_answer and known_vars.candidate_answer when available. Do not use markdown."
             )
         },
         "evaluation": {
@@ -186,10 +247,14 @@ def _build_meta_task_progress(
         remaining_steps = [str(item) for item in progress.get("remaining_steps", []) if str(item).strip()]
 
     phase = "strategy_scan" if current_step_index == 0 else "incremental_refinement"
+    is_terminal_step = bool(step_ordering) and current_step_index >= total_steps - 1
     if phase == "strategy_scan":
+        current_step_guidance = META_TASK_STRATEGY_SCAN_GUIDANCE
+    elif is_terminal_step:
         current_step_guidance = (
-            "Analyze the next-step strategy space at planning level. "
-            "Make one route-local planning claim only, keep all other routes deferred, and do not solve the final answer yet."
+            f"This is the terminal step for the selected route: {current_step}. "
+            "Collapse the route into one explicit candidate answer expression or final governing relation. "
+            "If a concrete numeric, symbolic, or classification answer is available, write it in known_vars.final_answer and known_vars.candidate_answer, and keep equations non-meta."
         )
     else:
         current_step_guidance = (
@@ -205,7 +270,7 @@ def _build_meta_task_progress(
         "remaining_steps": remaining_steps,
         "total_steps": total_steps,
         "phase": phase,
-        "is_terminal_step": bool(step_ordering) and current_step_index >= total_steps - 1,
+        "is_terminal_step": is_terminal_step,
         "route_options": _coerce_structured_reasoning_list(meta_task.get("route_options", [])),
         "step_blueprints": _coerce_structured_reasoning_list(meta_task.get("step_blueprints", [])),
     }
@@ -219,6 +284,24 @@ def _propagate_meta_task(
 ) -> dict[str, Any]:
     normalized_context = deepcopy(problem_context)
     normalized_meta_task = _coerce_model_payload(MetaAnalysisPayload, dict(meta_task))
+    reasoning_depth_preset = str(normalized_context.get("reasoning_depth_preset", "")).strip().lower()
+    if reasoning_depth_preset == "low":
+        incoming_step_ordering = _coerce_string_list(meta_task.get("step_ordering", []))
+        if incoming_step_ordering:
+            normalized_meta_task["first_step"] = incoming_step_ordering[0]
+            normalized_meta_task["step_ordering"] = incoming_step_ordering
+            normalized_meta_task["minimal_subproblems"] = _dedupe_string_sequence(
+                [*_coerce_string_list(meta_task.get("minimal_subproblems", [])), *incoming_step_ordering]
+            )
+            incoming_completion_signals = _coerce_string_list(meta_task.get("completion_signals", []))
+            if incoming_completion_signals:
+                normalized_meta_task["completion_signals"] = incoming_completion_signals[: len(incoming_step_ordering)]
+            incoming_route_options = _coerce_structured_reasoning_list(meta_task.get("route_options", []))
+            if incoming_route_options:
+                normalized_meta_task["route_options"] = incoming_route_options
+            incoming_step_blueprints = _coerce_structured_reasoning_list(meta_task.get("step_blueprints", []))
+            if incoming_step_blueprints:
+                normalized_meta_task["step_blueprints"] = incoming_step_blueprints
     normalized_context["meta_task"] = normalized_meta_task
     normalized_context["meta_task_progress"] = _build_meta_task_progress(
         normalized_meta_task,
@@ -233,6 +316,8 @@ def _propagate_meta_task(
         for item in children:
             if isinstance(item, dict):
                 child_context = deepcopy(item)
+                if "reasoning_depth_preset" not in child_context and reasoning_depth_preset:
+                    child_context["reasoning_depth_preset"] = reasoning_depth_preset
                 child_meta_task = child_context.get("meta_task")
                 if not isinstance(child_meta_task, dict) or not child_meta_task:
                     child_meta_task = meta_task
@@ -247,234 +332,6 @@ def _propagate_meta_task(
         normalized_context["children"] = propagated_children
 
     return normalized_context
-
-
-def _serialize_raw_response_for_repair(raw_response: Any) -> str:
-    if isinstance(raw_response, str):
-        return raw_response
-    try:
-        return json.dumps(raw_response, ensure_ascii=False, sort_keys=True)
-    except TypeError:
-        return str(raw_response)
-
-
-class ChatBackendError(RuntimeError):
-    """Base class for local chat backend failures."""
-
-
-class ChatBackendTransportError(ChatBackendError):
-    """Transport-level or HTTP failures when calling the local chat backend."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        status_code: Optional[int] = None,
-        response_body: str = "",
-    ) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-        self.response_body = response_body
-
-
-class ChatBackendResponseError(ChatBackendError):
-    """Raised when the local chat backend returns an unusable payload."""
-
-
-def _model_dump(model: BaseModel) -> dict[str, Any]:
-    try:
-        return model.model_dump()
-    except AttributeError:
-        return model.dict()
-
-
-def _build_model(model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
-    unexpected = set(payload) - _model_field_names(model_type)
-    if unexpected:
-        names = ", ".join(sorted(unexpected))
-        raise ValueError(f"Unexpected fields for {model_type.__name__}: {names}")
-    try:
-        return model_type.model_validate(payload)
-    except AttributeError:
-        return model_type.parse_obj(payload)
-
-
-def _extract_json_payload(text: str) -> dict[str, Any]:
-    candidates = [text.strip()]
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        first_newline = stripped.find("\n")
-        last_fence = stripped.rfind("```")
-        if first_newline != -1 and last_fence > first_newline:
-            candidates.append(stripped[first_newline + 1:last_fence].strip())
-    start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start != -1 and end > start:
-        candidates.append(stripped[start:end + 1])
-    candidates.extend(_extract_balanced_json_object_candidates(stripped))
-
-    valid_payloads: list[tuple[int, int, dict[str, Any]]] = []
-    for candidate in candidates:
-        if not candidate:
-            continue
-        try:
-            loaded = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(loaded, dict):
-            valid_payloads.append((len(loaded), len(candidate), dict(loaded)))
-    if valid_payloads:
-        return max(valid_payloads, key=lambda item: (item[0], item[1]))[2]
-    raise ValueError("Chat backend response did not contain a valid JSON object payload.")
-
-
-def _extract_balanced_json_object_candidates(text: str) -> list[str]:
-    candidates: list[str] = []
-    start_index: Optional[int] = None
-    depth = 0
-    in_string = False
-    escape_next = False
-
-    for index, char in enumerate(text):
-        if in_string:
-            if escape_next:
-                escape_next = False
-                continue
-            if char == "\\":
-                escape_next = True
-                continue
-            if char == '"':
-                in_string = False
-            continue
-
-        if char == '"':
-            in_string = True
-            continue
-        if char == "{":
-            if depth == 0:
-                start_index = index
-            depth += 1
-            continue
-        if char == "}" and depth > 0:
-            depth -= 1
-            if depth == 0 and start_index is not None:
-                candidate = text[start_index:index + 1].strip()
-                if candidate:
-                    candidates.append(candidate)
-                start_index = None
-
-    return candidates
-
-
-def _content_to_text(value: Any) -> Optional[str]:
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        preferred_parts: list[str] = []
-        fallback_parts: list[str] = []
-        for item in value:
-            if isinstance(item, str) and item.strip():
-                fallback_parts.append(item.strip())
-                continue
-            if not isinstance(item, dict):
-                continue
-            item_parts: list[str] = []
-            text = item.get("text")
-            if isinstance(text, str) and text.strip():
-                item_parts.append(text.strip())
-            nested_content = item.get("content")
-            if isinstance(nested_content, str) and nested_content.strip():
-                item_parts.append(nested_content.strip())
-            elif isinstance(nested_content, list):
-                nested_text = _content_to_text(nested_content)
-                if isinstance(nested_text, str) and nested_text.strip():
-                    item_parts.append(nested_text.strip())
-            if not item_parts:
-                continue
-
-            item_type = str(item.get("type", "")).strip().lower()
-            target_parts = preferred_parts if item_type and item_type not in {"reasoning", "analysis"} else fallback_parts
-            target_parts.extend(item_parts)
-        if preferred_parts:
-            return "\n".join(preferred_parts)
-        if fallback_parts:
-            return "\n".join(fallback_parts)
-    return None
-
-
-def _coerce_string_list(value: Any) -> list[str]:
-    if isinstance(value, (list, tuple, set)):
-        items: list[str] = []
-        for item in value:
-            text = _coerce_string_scalar(item)
-            if text:
-                items.append(text)
-        return items
-    if isinstance(value, str):
-        stripped = value.strip()
-        return [stripped] if stripped else []
-    text = _coerce_string_scalar(value)
-    return [text] if text else []
-
-
-def _coerce_string_scalar(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value.strip()
-    if isinstance(value, (int, float, bool)):
-        return str(value).strip()
-    if isinstance(value, dict):
-        for key in (
-            "action",
-            "step",
-            "first_step",
-            "current_step",
-            "selected_task",
-            "step_focus",
-            "thought_step",
-            "objective",
-            "title",
-            "name",
-            "summary",
-            "description",
-            "reason",
-            "guidance",
-            "text",
-            "content",
-        ):
-            if key not in value:
-                continue
-            text = _coerce_string_scalar(value.get(key))
-            if text:
-                return text
-
-        parts: list[str] = []
-        for nested_value in value.values():
-            text = _coerce_string_scalar(nested_value)
-            if text and text not in parts:
-                parts.append(text)
-        return "; ".join(parts)
-    if isinstance(value, (list, tuple, set)):
-        parts: list[str] = []
-        for item in value:
-            text = _coerce_string_scalar(item)
-            if text and text not in parts:
-                parts.append(text)
-        return "; ".join(parts)
-    return str(value).strip()
-
-
-def _dedupe_string_sequence(values: list[Any]) -> list[str]:
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        normalized = _coerce_string_scalar(value)
-        if not normalized or normalized in seen:
-            continue
-        deduped.append(normalized)
-        seen.add(normalized)
-    return deduped
 
 
 def _extend_meta_analysis_steps(seed_steps: list[Any]) -> list[str]:
@@ -515,128 +372,6 @@ def _ensure_meta_analysis_depth(payload: dict[str, Any]) -> dict[str, Any]:
     )
     normalized["completion_signals"] = completion_signals[: max(len(step_ordering), MIN_META_ANALYSIS_STEP_COUNT)]
     return normalized
-
-
-def _dedupe_structured_reasoning_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    deduped: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for item in items:
-        if not isinstance(item, dict) or not item:
-            continue
-        signature = json.dumps(item, ensure_ascii=False, sort_keys=True)
-        if signature in seen:
-            continue
-        seen.add(signature)
-        deduped.append(item)
-    return deduped
-
-
-def _coerce_structured_reasoning_item(value: Any, *, default_status: str = "") -> dict[str, Any]:
-    if isinstance(value, dict):
-        normalized: dict[str, Any] = {}
-        label = ""
-        for key in (
-            "label",
-            "action",
-            "selected_task",
-            "step_focus",
-            "step",
-            "title",
-            "name",
-            "summary",
-            "description",
-            "text",
-            "content",
-            "current_step",
-            "first_step",
-        ):
-            label = _coerce_string_scalar(value.get(key))
-            if label:
-                break
-        if label:
-            normalized["label"] = label
-
-        for target_key, source_keys in (
-            ("route_family", ("route_family", "route", "family", "perspective")),
-            ("step_type", ("step_type", "task_type", "phase", "mode")),
-            ("target_quantity", ("target_quantity", "target", "quantity", "focus")),
-            (
-                "correction_mode",
-                (
-                    "correction_mode",
-                    "correction_style",
-                    "correction_family",
-                    "closure_strategy",
-                    "error_model",
-                    "parameterization",
-                ),
-            ),
-            (
-                "correction_target",
-                (
-                    "correction_target",
-                    "correction_quantity",
-                    "correction_term",
-                    "correction_focus",
-                    "target_correction",
-                    "deferred_correction",
-                ),
-            ),
-            ("guidance", ("guidance", "current_step_guidance", "description", "rationale")),
-            ("status", ("status", "selection", "role")),
-            ("slot", ("slot", "reasoning_slot", "distribution_slot")),
-        ):
-            for source_key in source_keys:
-                text = _coerce_string_scalar(value.get(source_key))
-                if text:
-                    normalized[target_key] = text
-                    break
-
-        for target_key, source_keys in (
-            ("governing_models", ("governing_models", "used_models", "models")),
-            ("assumptions", ("assumptions",)),
-            ("deferred_terms", ("deferred_terms", "deferred_tasks", "pending_terms", "corrections")),
-            ("completion_signals", ("completion_signals",)),
-        ):
-            aggregated: list[str] = []
-            for source_key in source_keys:
-                aggregated.extend(_coerce_string_list(value.get(source_key)))
-            if aggregated:
-                normalized[target_key] = list(dict.fromkeys(aggregated))
-
-        priority = value.get("priority")
-        if isinstance(priority, (int, float)):
-            normalized["priority"] = priority
-
-        if default_status and not normalized.get("status"):
-            normalized["status"] = default_status
-
-        if not normalized.get("label"):
-            fallback_label = _coerce_string_scalar(value)
-            if fallback_label:
-                normalized["label"] = fallback_label
-        return normalized
-
-    text = _coerce_string_scalar(value)
-    if not text:
-        return {}
-    normalized = {"label": text}
-    if default_status:
-        normalized["status"] = default_status
-    return normalized
-
-
-def _coerce_structured_reasoning_list(value: Any, *, default_status: str = "") -> list[dict[str, Any]]:
-    if value is None:
-        return []
-    if isinstance(value, (list, tuple, set)):
-        items = [
-            _coerce_structured_reasoning_item(item, default_status=default_status)
-            for item in value
-        ]
-    else:
-        items = [_coerce_structured_reasoning_item(value, default_status=default_status)]
-    return _dedupe_structured_reasoning_items([item for item in items if item])
 
 
 def _derive_meta_route_options(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -730,82 +465,6 @@ def _selected_candidate_task(candidate_tasks: Any) -> dict[str, Any]:
     return {}
 
 
-def _coerce_mapping(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return dict(value)
-    if isinstance(value, str):
-        stripped = value.strip()
-        return {stripped: None} if stripped else {}
-    if not isinstance(value, list):
-        return {}
-
-    normalized: dict[str, Any] = {}
-    for item in value:
-        if isinstance(item, dict):
-            normalized.update({str(key): nested_value for key, nested_value in item.items()})
-            continue
-        if isinstance(item, (list, tuple)) and len(item) == 2:
-            normalized[str(item[0])] = item[1]
-            continue
-        text = str(item).strip()
-        if text:
-            normalized[text] = None
-    return normalized
-
-
-def _coerce_optional_number(value: Any) -> Any:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        stripped = value.strip()
-        if not stripped:
-            return None
-        try:
-            return float(stripped)
-        except ValueError:
-            return value
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return float(value)
-    return value
-
-
-def _coerce_optional_number_or_none(value: Any) -> Any:
-    coerced = _coerce_optional_number(value)
-    if isinstance(coerced, str):
-        return None
-    return coerced
-
-
-def _coerce_evaluation_field_aliases(
-    normalized: dict[str, Any],
-    field_names: set[str],
-) -> dict[str, Any]:
-    expected_fields = {
-        "domain_consistency",
-        "variable_grounding",
-        "contextual_relevance",
-        "simplicity_hint",
-        "score",
-        "reason",
-        "hard_rule_violations",
-    }
-    if not {"domain_consistency", "contextual_relevance"}.issubset(field_names):
-        return normalized
-
-    for alias in list(normalized):
-        normalized_alias = str(alias).strip().lower()
-        if normalized_alias in expected_fields:
-            continue
-        match = get_close_matches(normalized_alias, sorted(expected_fields), n=1, cutoff=0.72)
-        if not match:
-            continue
-        normalized.setdefault(match[0], normalized.get(alias))
-        normalized.pop(alias, None)
-    return normalized
-
-
 def _coerce_model_payload(model_type: type[BaseModel], payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
     field_names = _model_field_names(model_type)
@@ -871,201 +530,6 @@ def _coerce_model_payload(model_type: type[BaseModel], payload: dict[str, Any]) 
         )
 
     return normalized
-
-
-def _normalize_chat_payload(response: Any) -> dict[str, Any]:
-    if isinstance(response, dict):
-        wrapper_keys = {"choices", "content", "data", "message", "output", "response", "text"}
-        if not (set(response) & wrapper_keys):
-            return dict(response)
-        for key in ("output", "response", "content", "text", "data"):
-            value = response.get(key)
-            if isinstance(value, dict):
-                return dict(value)
-            content_text = _content_to_text(value)
-            if content_text is not None:
-                return _extract_json_payload(content_text)
-        message = response.get("message")
-        if isinstance(message, dict):
-            content = message.get("content", message.get("text"))
-            if isinstance(content, dict):
-                return dict(content)
-            content_text = _content_to_text(content)
-            if content_text is not None:
-                return _extract_json_payload(content_text)
-        choices = response.get("choices")
-        if isinstance(choices, list) and choices:
-            first = choices[0]
-            if isinstance(first, dict):
-                message = first.get("message")
-                if isinstance(message, dict):
-                    content_text = _content_to_text(message.get("content", message.get("text")))
-                    if content_text is not None:
-                        return _extract_json_payload(content_text)
-                for key in ("output", "content", "text"):
-                    value = first.get(key)
-                    if isinstance(value, dict):
-                        return dict(value)
-                    content_text = _content_to_text(value)
-                    if content_text is not None:
-                        return _extract_json_payload(content_text)
-    if isinstance(response, str):
-        return _extract_json_payload(response)
-    raise TypeError("Chat backend response must be a dictionary or string payload.")
-
-
-class LocalChatAPIClient:
-    """Thin client for the local chat API exposed at ``/api/v1/chat``."""
-
-    def __init__(
-        self,
-        *,
-        base_url: str = DEFAULT_CHAT_API_URL,
-        timeout: float = 30.0,
-        max_retries: int = 1,
-        retry_backoff_seconds: float = 0.25,
-        requester: Optional[ChatRequester] = None,
-    ) -> None:
-        if timeout <= 0:
-            raise ValueError("timeout must be positive.")
-        if max_retries < 0:
-            raise ValueError("max_retries must be non-negative.")
-        if retry_backoff_seconds < 0:
-            raise ValueError("retry_backoff_seconds must be non-negative.")
-
-        self.base_url = base_url
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.retry_backoff_seconds = retry_backoff_seconds
-        self._requester = requester or self._default_requester
-
-    def chat(self, *, model: str, system_prompt: str, input_text: str) -> Any:
-        normalized_model = str(model).strip()
-        if not normalized_model:
-            raise ValueError("model must be a non-empty string.")
-
-        normalized_input_text = str(input_text).strip()
-        if not normalized_input_text:
-            raise ValueError("input_text must be a non-empty string.")
-
-        payload = {
-            "model": normalized_model,
-            "system_prompt": "" if system_prompt is None else str(system_prompt),
-            "input": normalized_input_text,
-        }
-        for attempt_index in range(self.max_retries + 1):
-            try:
-                response = self._requester(self.base_url, payload, self.timeout)
-            except Exception as exc:
-                normalized_exc = self._normalize_request_exception(exc)
-                if attempt_index >= self.max_retries or not self._should_retry(normalized_exc):
-                    if normalized_exc is exc:
-                        raise
-                    raise normalized_exc from exc
-                self._sleep_before_retry(attempt_index)
-                continue
-
-            if response is None:
-                raise ChatBackendResponseError("Chat backend returned no response body.")
-            if isinstance(response, (bytes, bytearray)):
-                response = response.decode("utf-8", errors="replace")
-            if isinstance(response, str) and not response.strip():
-                raise ChatBackendResponseError("Chat backend returned an empty response body.")
-            return response
-
-        raise ChatBackendTransportError("Chat backend request exhausted all retry attempts.")
-
-    def _normalize_request_exception(self, exc: Exception) -> Exception:
-        if isinstance(exc, ChatBackendError):
-            return exc
-        if isinstance(exc, (TimeoutError, socket.timeout)):
-            return ChatBackendTransportError(
-                f"Timed out after {self.timeout:.1f}s waiting for chat backend at {self.base_url}"
-            )
-        if isinstance(exc, HTTPError):
-            details = exc.read().decode("utf-8", errors="replace")
-            return ChatBackendTransportError(
-                f"Chat backend returned HTTP {exc.code}: {details}",
-                status_code=exc.code,
-                response_body=details,
-            )
-        if isinstance(exc, URLError):
-            return ChatBackendTransportError(
-                f"Failed to reach chat backend at {self.base_url}: {exc.reason}"
-            )
-        return exc
-
-    def _should_retry(self, exc: Exception) -> bool:
-        if isinstance(exc, ChatBackendTransportError):
-            return exc.status_code is None or exc.status_code in TRANSIENT_HTTP_STATUS_CODES
-        return False
-
-    def _sleep_before_retry(self, attempt_index: int) -> None:
-        if self.retry_backoff_seconds <= 0:
-            return
-        time.sleep(self.retry_backoff_seconds * (2**attempt_index))
-
-    def _default_requester(self, url: str, payload: dict[str, Any], timeout: float) -> Any:
-        try:
-            response = requests.post(
-                url,
-                json=payload,
-                headers={"Accept": "application/json"},
-                timeout=timeout,
-            )
-        except requests.Timeout as exc:
-            raise ChatBackendTransportError(
-                f"Timed out after {timeout:.1f}s waiting for chat backend at {url}"
-            ) from exc
-        except requests.RequestException as exc:
-            raise ChatBackendTransportError(
-                f"Failed to reach chat backend at {url}: {exc}"
-            ) from exc
-
-        raw = response.text
-        if response.status_code >= 400:
-            raise ChatBackendTransportError(
-                f"Chat backend returned HTTP {response.status_code}: {raw}",
-                status_code=response.status_code,
-                response_body=raw,
-            )
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return raw
-
-
-def make_openai_requester(api_key: str) -> "ChatRequester":
-    """Return a requester that speaks the OpenAI messages format with Bearer auth.
-
-    Converts the internal {system_prompt, input} payload to {messages:[...]}
-    so any OpenAI-compatible API (OpenRouter, OpenAI, etc.) works out of the box.
-    """
-    def _requester(url: str, payload: dict[str, Any], timeout: float) -> Any:
-        messages: list[dict[str, str]] = []
-        sp = payload.get("system_prompt", "")
-        if sp:
-            messages.append({"role": "system", "content": sp})
-        messages.append({"role": "user", "content": payload.get("input", "")})
-        oai_payload = {
-            "model": payload.get("model", ""),
-            "messages": messages,
-        }
-        body = json.dumps(oai_payload).encode("utf-8")
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        }
-        request = Request(url, data=body, headers=headers, method="POST")
-        with urlopen(request, timeout=timeout) as response:
-            raw = response.read().decode("utf-8")
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return raw
-
-    return _requester
 
 
 class ProposalRequest(BaseModel):
@@ -1209,6 +673,8 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
     REASONING_SHORT_LIST_LIMIT = 3
     REASONING_MAP_LIMIT = 6
     LOCAL_ROUTE_SCAN_TEXT_LIMIT = 2400
+    ROOT_LIVE_PROPOSAL_TIMEOUT_CAP_SECONDS = 75.0
+    ROOT_LIVE_EVALUATION_TIMEOUT_CAP_SECONDS = 30.0
     LOCAL_META_ANALYSIS_STEP_ORDERING = DEFAULT_META_ANALYSIS_STEP_ORDERING
     LOCAL_META_ANALYSIS_COMPLETION_SIGNALS = DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS
 
@@ -1263,68 +729,85 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
 
         # Keep the full problem statement off the planning/orchestration path at
         # session creation time by generating the root meta-task locally.
+        meta_task = self._build_local_meta_analysis(normalized_context)
         return _propagate_meta_task(
             normalized_context,
-            self._build_local_meta_analysis(normalized_context),
+            self._enforce_reasoning_depth_profile(meta_task, normalized_context),
         )
 
-    def _should_use_local_fast_meta_analysis(self, problem_context: dict[str, Any]) -> bool:
-        allowed_keys = {
-            "problem_statement",
-            "givens",
-            "unknowns",
-            "task",
-            "notes",
-            "known_context",
-            "domain",
-            "discipline",
-            "skill_names",
-            "domain_plugins",
-            "skill_query",
-        }
-        for key, value in problem_context.items():
-            if key not in allowed_keys and value not in (None, "", [], {}):
-                return False
+    def _enforce_reasoning_depth_profile(
+        self,
+        meta_task: dict[str, Any],
+        problem_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        profile = self._meta_analysis_profile(problem_context)
+        if profile.get("preset") != "low":
+            return meta_task
 
-        task = str(problem_context.get("task", "")).strip()
-        if task and len(task) > self.META_ANALYSIS_SHORT_TEXT_LIMIT:
-            return False
+        normalized = dict(meta_task)
+        step_ordering = list(profile["step_ordering"])
+        route_options = _coerce_structured_reasoning_list(normalized.get("route_options", []))[: int(profile["max_route_options"])]
+        normalized["first_step"] = step_ordering[0]
+        normalized["step_ordering"] = step_ordering
+        normalized["minimal_subproblems"] = _dedupe_string_sequence(
+            [*_coerce_string_list(normalized.get("minimal_subproblems", [])), *step_ordering]
+        )
+        normalized["completion_signals"] = _dedupe_string_sequence(
+            [*_coerce_string_list(normalized.get("completion_signals", [])), *profile["completion_signals"]]
+        )[: len(step_ordering)]
+        normalized["route_options"] = route_options
+        normalized["step_blueprints"] = self._derive_fast_local_step_blueprints(
+            first_step=step_ordering[0],
+            route_options=route_options,
+            step_ordering=step_ordering,
+        )
+        return normalized
 
-        notes = problem_context.get("notes", [])
-        if notes not in (None, []):
-            if not isinstance(notes, list):
-                return False
-            normalized_notes = [str(item).strip() for item in notes if str(item).strip()]
-            if len(normalized_notes) > 4:
-                return False
-            if any(len(item) > self.META_ANALYSIS_SHORT_TEXT_LIMIT for item in normalized_notes):
-                return False
+    @staticmethod
+    def _normalize_reasoning_depth_preset(problem_context: dict[str, Any]) -> str:
+        normalized = str(problem_context.get("reasoning_depth_preset", DEFAULT_REASONING_DEPTH_PRESET)).strip().lower()
+        if normalized in {"low", "medium", "high"}:
+            return normalized
+        return DEFAULT_REASONING_DEPTH_PRESET
 
-        known_context = problem_context.get("known_context", {})
-        if known_context not in (None, {}):
-            if not isinstance(known_context, dict):
-                return False
-            normalized_known_context = {
-                str(key).strip(): str(value).strip()
-                for key, value in known_context.items()
-                if str(key).strip() and str(value).strip()
+    def _meta_analysis_profile(self, problem_context: dict[str, Any]) -> dict[str, Any]:
+        preset = self._normalize_reasoning_depth_preset(problem_context)
+        if preset == "low":
+            return {
+                "preset": preset,
+                "step_ordering": list(LOW_META_ANALYSIS_STEP_ORDERING),
+                "completion_signals": list(LOW_META_ANALYSIS_COMPLETION_SIGNALS),
+                "max_route_options": 3,
             }
-            if set(normalized_known_context) - {"objective", "expected_output"}:
-                return False
-            if any(len(value) > self.META_ANALYSIS_SHORT_TEXT_LIMIT for value in normalized_known_context.values()):
-                return False
+        if preset == "high":
+            return {
+                "preset": preset,
+                "step_ordering": [
+                    *DEFAULT_META_ANALYSIS_STEP_ORDERING,
+                    *HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING,
+                ],
+                "completion_signals": [
+                    *DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS,
+                    *HIGH_META_ANALYSIS_EXTRA_COMPLETION_SIGNALS,
+                ],
+                "max_route_options": 7,
+            }
+        return {
+            "preset": preset,
+            "step_ordering": list(DEFAULT_META_ANALYSIS_STEP_ORDERING),
+            "completion_signals": list(DEFAULT_META_ANALYSIS_COMPLETION_SIGNALS),
+            "max_route_options": 6,
+        }
 
-        problem_statement = str(problem_context.get("problem_statement", "")).strip()
-        return bool(problem_statement) and len(problem_statement) <= self.META_ANALYSIS_SHORT_TEXT_LIMIT
-
-    def _build_fast_local_meta_analysis(self, problem_context: dict[str, Any]) -> dict[str, Any]:
+    def _build_local_meta_analysis(self, problem_context: dict[str, Any]) -> dict[str, Any]:
         summarized_context = self._summarize_problem_context_for_meta_analysis(problem_context, minimal=True)
         problem_statement = self._truncate_meta_analysis_text(
             summarized_context.get("problem_statement", ""),
             self.META_ANALYSIS_SHORT_TEXT_LIMIT,
         )
         objective = problem_statement or "Solve the problem through a small sequence of local steps."
-        step_ordering = list(self.LOCAL_META_ANALYSIS_STEP_ORDERING)
+        profile = self._meta_analysis_profile(problem_context)
+        step_ordering = list(profile["step_ordering"])
         first_step = step_ordering[0]
         route_options = self._derive_fast_local_route_options(
             self._build_local_meta_analysis_route_seed_text(
@@ -1333,22 +816,24 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             ),
             problem_context=problem_context,
         )
+        route_options = route_options[: int(profile["max_route_options"])]
 
-        fast_payload = {
+        payload = {
             "objective": objective,
             "givens": self._compact_string_list_for_meta_analysis(problem_context.get("givens", []), short=True),
             "unknowns": self._compact_string_list_for_meta_analysis(problem_context.get("unknowns", []), short=True),
             "minimal_subproblems": step_ordering,
             "step_ordering": step_ordering,
             "first_step": first_step,
-            "completion_signals": list(self.LOCAL_META_ANALYSIS_COMPLETION_SIGNALS),
+            "completion_signals": list(profile["completion_signals"]),
             "route_options": route_options,
             "step_blueprints": self._derive_fast_local_step_blueprints(
                 first_step=first_step,
                 route_options=route_options,
+                step_ordering=step_ordering,
             ),
         }
-        return _coerce_model_payload(MetaAnalysisPayload, fast_payload)
+        return _coerce_model_payload(MetaAnalysisPayload, payload)
 
     def _derive_fast_local_route_options(
         self,
@@ -1482,6 +967,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         *,
         first_step: str,
         route_options: list[dict[str, Any]],
+        step_ordering: list[str],
     ) -> list[dict[str, Any]]:
         route_families = [
             str(option.get("route_family", "")).strip()
@@ -1493,49 +979,58 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         if route_summary:
             first_guidance = f"{first_guidance} Available route families: {route_summary}."
 
-        return [
+        blueprints = [
             {
                 "label": first_step,
                 "step_type": "strategy_scan",
                 "guidance": f"{first_guidance} Name one governing law/model, one decisive assumption, or one active correction quantity only.",
-            },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[1],
-                "step_type": "incremental_refinement",
+            }
+        ]
+
+        for label in step_ordering[1:]:
+            blueprints.append(self._build_incremental_step_blueprint(label))
+
+        return blueprints
+
+    @staticmethod
+    def _build_incremental_step_blueprint(label: str) -> dict[str, Any]:
+        guidance_by_label = {
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[1]: {
                 "guidance": "Choose exactly one deferred correction quantity or closure for the selected route, and defer everything else.",
                 "correction_mode": "one correction at a time",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[2],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[2]: {
                 "guidance": "Write one short target relation in known variables and stop.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[3],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[3]: {
                 "guidance": "Identify one remaining unknown, missing boundary condition, or closure relation that still blocks the selected route.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[4],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[4]: {
                 "guidance": "Add exactly one constitutive relation, closure choice, or material law needed for the selected route.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[5],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[5]: {
                 "guidance": "Reduce the current branch to one solvable local relation and defer every unrelated simplification.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[6],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[6]: {
                 "guidance": "Extract one candidate answer expression or one explicit next-state relation and stop.",
             },
-            {
-                "label": self.LOCAL_META_ANALYSIS_STEP_ORDERING[7],
-                "step_type": "incremental_refinement",
+            DEFAULT_META_ANALYSIS_STEP_ORDERING[7]: {
                 "guidance": "Run one short limiting-case, dimensional, or boundary-consistency check and stop.",
             },
-        ]
+            HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING[0]: {
+                "guidance": "Stress exactly one unresolved assumption against one alternative local closure or approximation, and defer all other repairs.",
+            },
+            HIGH_META_ANALYSIS_EXTRA_STEP_ORDERING[1]: {
+                "guidance": "Compare only the surviving candidate answer forms, keep one locally consistent form, and defer final polish.",
+            },
+        }
+        blueprint = dict(guidance_by_label.get(label, {}))
+        blueprint.setdefault("guidance", "Refine exactly one local subproblem and defer everything else.")
+        return {
+            "label": label,
+            "step_type": "incremental_refinement",
+            **blueprint,
+        }
 
     def _contains_any_keyword(self, text: str, keywords: set[str]) -> bool:
         return any(keyword in text for keyword in keywords)
@@ -1581,57 +1076,6 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         if len(seed_text) <= self.LOCAL_ROUTE_SCAN_TEXT_LIMIT:
             return seed_text
         return seed_text[: self.LOCAL_ROUTE_SCAN_TEXT_LIMIT]
-
-    def _request_meta_analysis(self, problem_context: dict[str, Any]) -> dict[str, Any]:
-        primary_request = self._build_meta_analysis_request(problem_context, minimal=False)
-        try:
-            return self._call_meta_analysis_model(primary_request)
-        except ChatBackendResponseError:
-            return self._build_local_meta_analysis(problem_context)
-        except ChatBackendTransportError as exc:
-            if not self._is_context_overflow_error(exc):
-                return self._build_local_meta_analysis(problem_context)
-
-        minimal_request = self._build_meta_analysis_request(problem_context, minimal=True)
-        try:
-            return self._call_meta_analysis_model(minimal_request)
-        except ChatBackendResponseError:
-            return self._build_local_meta_analysis(problem_context)
-        except ChatBackendTransportError as exc:
-            if not self._is_context_overflow_error(exc):
-                return self._build_local_meta_analysis(problem_context)
-
-        return self._build_local_meta_analysis(problem_context)
-
-    def _build_local_meta_analysis(self, problem_context: dict[str, Any]) -> dict[str, Any]:
-        if self._should_use_local_fast_meta_analysis(problem_context):
-            return self._build_fast_local_meta_analysis(problem_context)
-        return self._build_fallback_meta_analysis(problem_context)
-
-    def _call_meta_analysis_model(self, request: dict[str, Any]) -> dict[str, Any]:
-        return self._call_chat_model(
-            stage="meta-analysis",
-            model=self.planning_model,
-            system_prompt=self._stage_system_prompt(
-                "meta-analysis",
-                contract_context=request.get("problem_context", {}),
-            ),
-            input_payload={"stage": "meta-analysis", "request": request},
-            response_model=MetaAnalysisPayload,
-        )
-
-    def _build_meta_analysis_request(
-        self,
-        problem_context: dict[str, Any],
-        *,
-        minimal: bool,
-    ) -> dict[str, Any]:
-        return {
-            "problem_context": self._summarize_problem_context_for_meta_analysis(
-                problem_context,
-                minimal=minimal,
-            )
-        }
 
     def _summarize_problem_context_for_meta_analysis(
         self,
@@ -1692,39 +1136,6 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
 
         return summary
 
-    def _build_fallback_meta_analysis(self, problem_context: dict[str, Any]) -> dict[str, Any]:
-        summarized_context = self._summarize_problem_context_for_meta_analysis(problem_context, minimal=True)
-        problem_statement = self._truncate_meta_analysis_text(
-            summarized_context.get("problem_statement", ""),
-            self.META_ANALYSIS_SHORT_TEXT_LIMIT,
-        )
-        objective = problem_statement or "Solve the problem through a small sequence of local steps."
-        step_ordering = list(self.LOCAL_META_ANALYSIS_STEP_ORDERING)
-        first_step = step_ordering[0]
-        route_options = self._derive_fast_local_route_options(
-            self._build_local_meta_analysis_route_seed_text(
-                problem_context,
-                summarized_context=summarized_context,
-            ),
-            problem_context=problem_context,
-        )
-
-        fallback_payload = {
-            "objective": objective,
-            "givens": self._compact_string_list_for_meta_analysis(problem_context.get("givens", []), short=True),
-            "unknowns": self._compact_string_list_for_meta_analysis(problem_context.get("unknowns", []), short=True),
-            "minimal_subproblems": step_ordering,
-            "step_ordering": step_ordering,
-            "first_step": first_step,
-            "completion_signals": list(self.LOCAL_META_ANALYSIS_COMPLETION_SIGNALS),
-            "route_options": route_options,
-            "step_blueprints": self._derive_fast_local_step_blueprints(
-                first_step=first_step,
-                route_options=route_options,
-            ),
-        }
-        return _coerce_model_payload(MetaAnalysisPayload, fallback_payload)
-
     def propose(self, request: ProposalRequest) -> dict[str, Any]:
         explicit_payload = self._select_explicit_stage_payload(
             request.problem_context,
@@ -1732,12 +1143,15 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             request.attempt_index,
         )
         if explicit_payload is not None:
-            return explicit_payload
+            return self._postprocess_proposal_payload(request.problem_context, explicit_payload)
 
         if self._should_skip_live_model_call(request.problem_context):
-            return self._build_local_proposal_payload(
+            return self._postprocess_proposal_payload(
+                request.problem_context,
+                self._build_local_proposal_payload(
                 request,
                 fallback_reason=self._live_model_fallback_reason,
+                ),
             )
 
         modeling_request, orchestrator_task = self._prepare_modeling_request(
@@ -1756,14 +1170,15 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
                 known_vars = dict(proposal.get("known_vars", {}))
                 known_vars["orchestrator_task"] = dict(orchestrator_task)
                 proposal["known_vars"] = known_vars
-            return proposal
+            return self._postprocess_proposal_payload(modeling_request.problem_context, proposal)
         try:
             proposal = self._call_chat_model(
                 stage="proposal",
                 model=self._select_modeling_model_for_request(modeling_request.problem_context),
-                system_prompt=self._stage_system_prompt("proposal"),
+                system_prompt=self._stage_system_prompt("proposal", contract_context=modeling_request.problem_context),
                 input_payload={"stage": "proposal", "request": compact_request},
                 response_model=ProposalPayload,
+                client=self._chat_client_for_proposal_request(modeling_request),
             )
         except ChatBackendError as exc:
             if not self._should_use_live_model_fallback(modeling_request.problem_context):
@@ -1774,7 +1189,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             known_vars = dict(proposal.get("known_vars", {}))
             known_vars["orchestrator_task"] = dict(orchestrator_task)
             proposal["known_vars"] = known_vars
-        return proposal
+        return self._postprocess_proposal_payload(modeling_request.problem_context, proposal)
 
     def evaluate(self, request: EvaluationRequest) -> dict[str, Any]:
         explicit_payload = self._select_explicit_stage_payload(
@@ -1794,18 +1209,29 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             return self._call_chat_model(
                 stage="evaluation",
                 model=self._select_evaluation_model_for_request(request.problem_context),
-                system_prompt=self._stage_system_prompt("evaluation"),
+                system_prompt=self._stage_system_prompt("evaluation", contract_context=request.problem_context),
                 input_payload={
                     "stage": "evaluate",
                     "request": self._build_compact_reasoning_request(stage="evaluation", request=request),
                 },
                 response_model=EvaluationPayload,
+                client=self._chat_client_for_evaluation_request(request),
             )
+        except ChatBackendTransportError as exc:
+            if self._should_rescue_root_live_evaluation(request, exc):
+                return self._build_unavailable_evaluation_payload(
+                    request,
+                    fallback_reason=f"root live evaluation timeout; continuing with local review. {exc}",
+                )
+            if not self._should_use_live_model_fallback(request.problem_context):
+                raise
+            self._remember_live_model_fallback(exc)
+            return self._build_unavailable_evaluation_payload(request, fallback_reason=str(exc))
         except ChatBackendError as exc:
             if not self._should_use_live_model_fallback(request.problem_context):
                 raise
             self._remember_live_model_fallback(exc)
-            return self._build_local_evaluation_payload(request, fallback_reason=str(exc))
+            return self._build_unavailable_evaluation_payload(request, fallback_reason=str(exc))
 
     def reflect(self, request: ReflectionRequest) -> dict[str, Any]:
         explicit_payload = self._select_explicit_stage_payload(
@@ -1815,6 +1241,17 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         )
         if explicit_payload is not None:
             return explicit_payload
+
+        if self._has_explicit_stage_payload(
+            request.problem_context,
+            "proposal",
+            "calculation",
+            "evaluation",
+        ):
+            return self._build_local_reflection_payload(
+                request,
+                fallback_reason="explicit stage payload context",
+            )
 
         if self._should_skip_live_model_call(request.problem_context):
             return self._build_local_reflection_payload(
@@ -1843,7 +1280,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             reflection = self._call_chat_model(
                 stage="reflection",
                 model=self._select_modeling_model_for_request(modeling_request.problem_context),
-                system_prompt=self._stage_system_prompt("reflection"),
+                system_prompt=self._stage_system_prompt("reflection", contract_context=modeling_request.problem_context),
                 input_payload={"stage": "reflect", "request": compact_request},
                 response_model=ReflectionPayload,
             )
@@ -1857,6 +1294,45 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             known_vars["orchestrator_task"] = dict(orchestrator_task)
             reflection["known_vars"] = known_vars
         return reflection
+
+    def _chat_client_for_proposal_request(self, request: ProposalRequest) -> LocalChatAPIClient:
+        if request.parent_node is not None:
+            return self.client
+        return self._chat_client_with_timeout_cap(self.ROOT_LIVE_PROPOSAL_TIMEOUT_CAP_SECONDS)
+
+    def _chat_client_for_evaluation_request(self, request: EvaluationRequest) -> LocalChatAPIClient:
+        if not self._is_root_evaluation_request(request):
+            return self.client
+        return self._chat_client_with_timeout_cap(self.ROOT_LIVE_EVALUATION_TIMEOUT_CAP_SECONDS)
+
+    def _chat_client_with_timeout_cap(self, timeout_cap: float) -> LocalChatAPIClient:
+        effective_timeout = min(float(self.client.timeout), float(timeout_cap))
+        if effective_timeout >= float(self.client.timeout):
+            return self.client
+        return LocalChatAPIClient(
+            base_url=self.client.base_url,
+            timeout=effective_timeout,
+            max_retries=self.client.max_retries,
+            retry_backoff_seconds=self.client.retry_backoff_seconds,
+            requester=self.client._requester,
+        )
+
+    @staticmethod
+    def _is_root_evaluation_request(request: EvaluationRequest) -> bool:
+        return not str(request.current_node.parent_id or "").strip()
+
+    @classmethod
+    def _should_rescue_root_live_evaluation(
+        cls,
+        request: EvaluationRequest,
+        exc: ChatBackendTransportError,
+    ) -> bool:
+        return cls._is_root_evaluation_request(request) and cls._is_timeout_transport_error(exc)
+
+    @staticmethod
+    def _is_timeout_transport_error(exc: ChatBackendTransportError) -> bool:
+        details = f"{exc} {exc.response_body}".lower()
+        return "timed out after" in details
 
     def _should_use_live_model_fallback(self, problem_context: dict[str, Any]) -> bool:
         if not self._allow_live_model_fallback:
@@ -1897,6 +1373,16 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         if isinstance(payload, dict) and payload:
             return dict(payload)
         return None
+
+    @staticmethod
+    def _has_explicit_stage_payload(problem_context: dict[str, Any], *keys: str) -> bool:
+        for key in keys:
+            payload = problem_context.get(key)
+            if isinstance(payload, dict) and payload:
+                return True
+            if isinstance(payload, list) and any(isinstance(item, dict) and item for item in payload):
+                return True
+        return False
 
     def _build_local_proposal_payload(
         self,
@@ -1959,6 +1445,12 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         *,
         fallback_reason: str,
     ) -> dict[str, Any]:
+        """Accepting payload for the explicit ``prefer_local_fallback`` fast mode only.
+
+        Live-failure paths must use ``_build_unavailable_evaluation_payload`` so a
+        dead backend cannot fabricate passing reviews.
+        """
+
         del request
         reason = self._truncate_reasoning_text(fallback_reason, self.REASONING_SHORT_TEXT_LIMIT)
         return {
@@ -1967,6 +1459,33 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             "contextual_relevance": 0.82,
             "simplicity_hint": 0.86,
             "reason": f"Local fallback review accepted this non-terminal branch so exploration can continue. {reason}".strip(),
+            "hard_rule_violations": [],
+        }
+
+    def _build_unavailable_evaluation_payload(
+        self,
+        request: EvaluationRequest,
+        *,
+        fallback_reason: str,
+    ) -> dict[str, Any]:
+        """Sub-threshold placeholder used when a live evaluation could not be obtained.
+
+        All quality dimensions are 0.5, so the weighted score is at most 5.0 —
+        below the 6.0 acceptance threshold. The node stays viable for deeper
+        reasoning but can never pass review or be marked solved on fabricated data.
+        """
+
+        del request
+        reason = self._truncate_reasoning_text(fallback_reason, self.REASONING_SHORT_TEXT_LIMIT)
+        return {
+            "domain_consistency": 0.5,
+            "variable_grounding": 0.5,
+            "contextual_relevance": 0.5,
+            "simplicity_hint": 0.5,
+            "reason": (
+                "Live evaluation unavailable; assigned a placeholder sub-threshold score so this "
+                f"branch is not promoted without a real model review. {reason}"
+            ).strip(),
             "hard_rule_violations": [],
         }
 
@@ -1985,6 +1504,146 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
                 self.REASONING_SHORT_TEXT_LIMIT,
             )
         return proposal
+
+    def _postprocess_proposal_payload(
+        self,
+        problem_context: dict[str, Any],
+        proposal: dict[str, Any],
+    ) -> dict[str, Any]:
+        normalized = dict(proposal)
+        known_vars = dict(normalized.get("known_vars", {}))
+        normalized["known_vars"] = known_vars
+
+        if not self._is_terminal_meta_task_context(problem_context):
+            return normalized
+
+        candidate_text, candidate_source = self._extract_terminal_answer_candidate(normalized)
+        if not candidate_text:
+            return normalized
+
+        for key in TERMINAL_ANSWER_KNOWN_VAR_KEYS:
+            known_vars.setdefault(key, candidate_text)
+
+        concrete_equations = self._concrete_equation_lines(normalized.get("equations", []))
+        if not concrete_equations and candidate_source != "equations" and self._looks_like_answer_text(candidate_text):
+            normalized["equations"] = [candidate_text]
+
+        return normalized
+
+    def _extract_terminal_answer_candidate(self, proposal: dict[str, Any]) -> tuple[str, str]:
+        known_vars = proposal.get("known_vars")
+        if isinstance(known_vars, dict):
+            direct_answer = self._extract_answer_text_from_mapping(known_vars)
+            if direct_answer:
+                return direct_answer, "known_vars"
+
+        for field_name in ("quantities", "boundary_conditions"):
+            field_value = proposal.get(field_name)
+            if isinstance(field_value, dict):
+                direct_answer = self._extract_answer_text_from_mapping(field_value)
+                if direct_answer:
+                    return direct_answer, field_name
+
+        concrete_equations = self._concrete_equation_lines(proposal.get("equations", []))
+        if concrete_equations:
+            return "\n".join(concrete_equations[:2]), "equations"
+
+        thought_step = self._normalize_answer_text(proposal.get("thought_step", ""))
+        if thought_step and self._looks_like_answer_text(thought_step):
+            return thought_step, "thought_step"
+
+        return "", ""
+
+    def _extract_answer_text_from_mapping(self, mapping: dict[str, Any]) -> str:
+        for key in TERMINAL_ANSWER_KNOWN_VAR_KEYS:
+            if key not in mapping:
+                continue
+            candidate = self._normalize_answer_text(self._format_answer_value(mapping[key]))
+            if candidate:
+                return candidate
+
+        for key, value in mapping.items():
+            normalized_key = str(key).strip().lower()
+            if not any(token in normalized_key for token in ("answer", "result", "solution", "output", "value")):
+                continue
+            candidate = self._normalize_answer_text(self._format_answer_value(value))
+            if candidate:
+                return candidate
+        return ""
+
+    @classmethod
+    def _concrete_equation_lines(cls, equations: Any) -> list[str]:
+        if not isinstance(equations, list):
+            return []
+        concrete_lines: list[str] = []
+        for item in equations:
+            line = cls._normalize_answer_text(item)
+            if not line or cls._is_meta_equation_text(line):
+                continue
+            concrete_lines.append(line)
+        return concrete_lines
+
+    @staticmethod
+    def _format_answer_value(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float, bool)):
+            return str(value)
+        if isinstance(value, list):
+            return "\n".join(
+                part
+                for part in (LocalChatDualModelBackendAdapter._format_answer_value(item) for item in value)
+                if part
+            )
+        if isinstance(value, dict):
+            return "\n".join(
+                f"{key}: {formatted}"
+                for key, formatted in (
+                    (str(key), LocalChatDualModelBackendAdapter._format_answer_value(item))
+                    for key, item in value.items()
+                )
+                if formatted
+            )
+        return str(value).strip()
+
+    @staticmethod
+    def _normalize_answer_text(value: Any) -> str:
+        return "\n".join(
+            line
+            for line in (str(part).strip() for part in str(value or "").splitlines())
+            if line
+        )
+
+    @staticmethod
+    def _is_meta_equation_text(text: str) -> bool:
+        normalized = str(text or "").strip().lower()
+        return bool(normalized) and normalized.startswith(META_EQUATION_PREFIXES)
+
+    @classmethod
+    def _looks_like_answer_text(cls, text: str) -> bool:
+        normalized = cls._normalize_answer_text(text)
+        if not normalized or cls._is_meta_answer_text(normalized):
+            return False
+        lowered = normalized.lower()
+        if any(keyword in lowered for keyword in TERMINAL_ANSWER_CLASSIFICATION_KEYWORDS):
+            return True
+        if re.search(r"\b\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\b", normalized):
+            return True
+        if any(symbol in normalized for symbol in ("=", "≈", "≃", "<", ">", "≤", "≥")):
+            return True
+        return bool(re.search(r"\b(answer|result|probability|distance|speed|frequency|energy|force|displacement)\b", lowered))
+
+    @staticmethod
+    def _is_meta_answer_text(text: str) -> bool:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return False
+        lowered = normalized.lower()
+        if lowered.startswith(META_EQUATION_PREFIXES):
+            return True
+        return any(pattern.search(normalized) for pattern in META_ANSWER_TEXT_PATTERNS)
 
     def _select_modeling_model_for_request(self, problem_context: dict[str, Any]) -> str:
         if self._is_planning_only_modeling_context(problem_context):
@@ -2857,165 +2516,119 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         details = f"{exc} {exc.response_body}".lower()
         return "context length" in details or "tokens to keep" in details
 
-    def _compact_string_list_for_meta_analysis(self, value: Any, *, short: bool) -> list[str]:
-        limit = self.META_ANALYSIS_SHORT_LIST_LIMIT if short else self.META_ANALYSIS_LIST_LIMIT
-        text_limit = self.META_ANALYSIS_SHORT_TEXT_LIMIT if short else self.META_ANALYSIS_TEXT_LIMIT
-        items = _coerce_string_list(value)
-        return [self._truncate_meta_analysis_text(item, text_limit) for item in items[:limit] if item.strip()]
+    def _compact_limits(self, prefix: str, *, nested_dict_uses_map_limit: bool = True) -> dict[str, Any]:
+        """Limit profile for one compaction family (META_ANALYSIS/ORCHESTRATOR/REASONING).
 
-    def _compact_mapping_for_meta_analysis(
-        self,
-        value: Any,
-        *,
-        limit: int,
-        short: bool,
-    ) -> dict[str, Any]:
+        ``nested_dict_uses_map_limit`` preserves a historical difference: the
+        reasoning family always compacts nested dicts to the short-list limit,
+        while the other families use the map limit on the first non-short level.
+        """
+
+        return {
+            "list": getattr(self, f"{prefix}_LIST_LIMIT"),
+            "short_list": getattr(self, f"{prefix}_SHORT_LIST_LIMIT"),
+            "map": getattr(self, f"{prefix}_MAP_LIMIT"),
+            "text": getattr(self, f"{prefix}_TEXT_LIMIT"),
+            "short_text": getattr(self, f"{prefix}_SHORT_TEXT_LIMIT"),
+            "nested_dict_uses_map_limit": nested_dict_uses_map_limit,
+        }
+
+    def _compact_string_list(self, value: Any, *, short: bool, limits: dict[str, Any]) -> list[str]:
+        limit = limits["short_list"] if short else limits["list"]
+        text_limit = limits["short_text"] if short else limits["text"]
+        items = _coerce_string_list(value)
+        return [_truncate_compact_text(item, text_limit) for item in items[:limit] if item.strip()]
+
+    def _compact_structured_list(self, value: Any, *, short: bool, limits: dict[str, Any]) -> list[dict[str, Any]]:
+        limit = limits["short_list"] if short else limits["list"]
+        items = _coerce_structured_reasoning_list(value)
+        compact: list[dict[str, Any]] = []
+        for item in items[:limit]:
+            compact_item: dict[str, Any] = {}
+            for key, raw_value in item.items():
+                if key == "priority" and isinstance(raw_value, (int, float)):
+                    compact_item[key] = raw_value
+                    continue
+                if isinstance(raw_value, list):
+                    compact_item[key] = self._compact_string_list(raw_value, short=True, limits=limits)
+                    continue
+                compact_item[key] = self._compact_scalar(raw_value, short=True, limits=limits)
+            if compact_item:
+                compact.append(compact_item)
+        return compact
+
+    def _compact_mapping(self, value: Any, *, limit: int, short: bool, limits: dict[str, Any]) -> dict[str, Any]:
         mapping = _coerce_mapping(value)
         compact: dict[str, Any] = {}
         for key, raw_value in list(mapping.items())[:limit]:
-            compact[str(key)] = self._compact_scalar_for_meta_analysis(raw_value, short=short)
+            compact[str(key)] = self._compact_scalar(raw_value, short=short, limits=limits)
         return compact
+
+    def _compact_scalar(self, value: Any, *, short: bool, limits: dict[str, Any]) -> Any:
+        if isinstance(value, (int, float, bool)) or value is None:
+            return value
+        if isinstance(value, dict):
+            if short or not limits["nested_dict_uses_map_limit"]:
+                nested_limit = limits["short_list"]
+            else:
+                nested_limit = limits["map"]
+            return self._compact_mapping(value, limit=nested_limit, short=True, limits=limits)
+        if isinstance(value, list):
+            return self._compact_string_list(value, short=True, limits=limits)
+        return _truncate_compact_text(value, limits["short_text"] if short else limits["text"])
+
+    # Family wrappers: the families share one implementation and differ only in
+    # their limit constants (plus the nested-dict knob documented above).
+    def _compact_string_list_for_meta_analysis(self, value: Any, *, short: bool) -> list[str]:
+        return self._compact_string_list(value, short=short, limits=self._compact_limits("META_ANALYSIS"))
+
+    def _compact_mapping_for_meta_analysis(self, value: Any, *, limit: int, short: bool) -> dict[str, Any]:
+        return self._compact_mapping(value, limit=limit, short=short, limits=self._compact_limits("META_ANALYSIS"))
 
     def _compact_scalar_for_meta_analysis(self, value: Any, *, short: bool) -> Any:
-        if isinstance(value, (int, float, bool)) or value is None:
-            return value
-        if isinstance(value, dict):
-            return self._compact_mapping_for_meta_analysis(
-                value,
-                limit=self.META_ANALYSIS_SHORT_LIST_LIMIT if short else self.META_ANALYSIS_MAP_LIMIT,
-                short=True,
-            )
-        if isinstance(value, list):
-            return self._compact_string_list_for_meta_analysis(value, short=True)
-        text_limit = self.META_ANALYSIS_SHORT_TEXT_LIMIT if short else self.META_ANALYSIS_TEXT_LIMIT
-        return self._truncate_meta_analysis_text(value, text_limit)
+        return self._compact_scalar(value, short=short, limits=self._compact_limits("META_ANALYSIS"))
 
     def _truncate_meta_analysis_text(self, value: Any, max_chars: int) -> str:
-        text = str(value).strip()
-        if not text:
-            return ""
-        if len(text) <= max_chars:
-            return text
-        return f"{text[: max_chars - 3].rstrip()}..."
+        return _truncate_compact_text(value, max_chars)
 
     def _compact_string_list_for_orchestrator(self, value: Any, *, short: bool) -> list[str]:
-        limit = self.ORCHESTRATOR_SHORT_LIST_LIMIT if short else self.ORCHESTRATOR_LIST_LIMIT
-        text_limit = self.ORCHESTRATOR_SHORT_TEXT_LIMIT if short else self.ORCHESTRATOR_TEXT_LIMIT
-        items = _coerce_string_list(value)
-        return [self._truncate_orchestrator_text(item, text_limit) for item in items[:limit] if item.strip()]
+        return self._compact_string_list(value, short=short, limits=self._compact_limits("ORCHESTRATOR"))
 
-    def _compact_structured_reasoning_list_for_orchestrator(
-        self,
-        value: Any,
-        *,
-        short: bool,
-    ) -> list[dict[str, Any]]:
-        limit = self.ORCHESTRATOR_SHORT_LIST_LIMIT if short else self.ORCHESTRATOR_LIST_LIMIT
-        items = _coerce_structured_reasoning_list(value)
-        compact: list[dict[str, Any]] = []
-        for item in items[:limit]:
-            compact_item: dict[str, Any] = {}
-            for key, raw_value in item.items():
-                if key == "priority" and isinstance(raw_value, (int, float)):
-                    compact_item[key] = raw_value
-                    continue
-                if isinstance(raw_value, list):
-                    compact_item[key] = self._compact_string_list_for_orchestrator(raw_value, short=True)
-                    continue
-                compact_item[key] = self._compact_scalar_for_orchestrator(raw_value, short=True)
-            if compact_item:
-                compact.append(compact_item)
-        return compact
+    def _compact_structured_reasoning_list_for_orchestrator(self, value: Any, *, short: bool) -> list[dict[str, Any]]:
+        return self._compact_structured_list(value, short=short, limits=self._compact_limits("ORCHESTRATOR"))
 
-    def _compact_mapping_for_orchestrator(
-        self,
-        value: Any,
-        *,
-        limit: int,
-        short: bool,
-    ) -> dict[str, Any]:
-        mapping = _coerce_mapping(value)
-        compact: dict[str, Any] = {}
-        for key, raw_value in list(mapping.items())[:limit]:
-            compact[str(key)] = self._compact_scalar_for_orchestrator(raw_value, short=short)
-        return compact
+    def _compact_mapping_for_orchestrator(self, value: Any, *, limit: int, short: bool) -> dict[str, Any]:
+        return self._compact_mapping(value, limit=limit, short=short, limits=self._compact_limits("ORCHESTRATOR"))
 
     def _compact_scalar_for_orchestrator(self, value: Any, *, short: bool) -> Any:
-        if isinstance(value, (int, float, bool)) or value is None:
-            return value
-        if isinstance(value, dict):
-            return self._compact_mapping_for_orchestrator(
-                value,
-                limit=self.ORCHESTRATOR_SHORT_LIST_LIMIT if short else self.ORCHESTRATOR_MAP_LIMIT,
-                short=True,
-            )
-        if isinstance(value, list):
-            return self._compact_string_list_for_orchestrator(value, short=True)
-        text_limit = self.ORCHESTRATOR_SHORT_TEXT_LIMIT if short else self.ORCHESTRATOR_TEXT_LIMIT
-        return self._truncate_orchestrator_text(value, text_limit)
+        return self._compact_scalar(value, short=short, limits=self._compact_limits("ORCHESTRATOR"))
 
     def _truncate_orchestrator_text(self, value: Any, max_chars: int) -> str:
-        text = str(value).strip()
-        if not text:
-            return ""
-        if len(text) <= max_chars:
-            return text
-        return f"{text[: max_chars - 3].rstrip()}..."
+        return _truncate_compact_text(value, max_chars)
+
+    def _reasoning_compact_limits(self) -> dict[str, Any]:
+        return self._compact_limits("REASONING", nested_dict_uses_map_limit=False)
 
     def _compact_string_list_for_reasoning(self, value: Any, *, short: bool) -> list[str]:
-        limit = self.REASONING_SHORT_LIST_LIMIT if short else self.REASONING_LIST_LIMIT
-        text_limit = self.REASONING_SHORT_TEXT_LIMIT if short else self.REASONING_TEXT_LIMIT
-        items = _coerce_string_list(value)
-        return [self._truncate_reasoning_text(item, text_limit) for item in items[:limit] if item.strip()]
+        return self._compact_string_list(value, short=short, limits=self._reasoning_compact_limits())
 
-    def _compact_structured_reasoning_list_for_reasoning(
-        self,
-        value: Any,
-        *,
-        short: bool,
-    ) -> list[dict[str, Any]]:
-        limit = self.REASONING_SHORT_LIST_LIMIT if short else self.REASONING_LIST_LIMIT
-        items = _coerce_structured_reasoning_list(value)
-        compact: list[dict[str, Any]] = []
-        for item in items[:limit]:
-            compact_item: dict[str, Any] = {}
-            for key, raw_value in item.items():
-                if key == "priority" and isinstance(raw_value, (int, float)):
-                    compact_item[key] = raw_value
-                    continue
-                if isinstance(raw_value, list):
-                    compact_item[key] = self._compact_string_list_for_reasoning(raw_value, short=True)
-                    continue
-                compact_item[key] = self._compact_scalar_for_reasoning(raw_value, short=True)
-            if compact_item:
-                compact.append(compact_item)
-        return compact
+    def _compact_structured_reasoning_list_for_reasoning(self, value: Any, *, short: bool) -> list[dict[str, Any]]:
+        return self._compact_structured_list(value, short=short, limits=self._reasoning_compact_limits())
 
     def _compact_mapping_for_reasoning(self, value: Any, *, short: bool) -> dict[str, Any]:
-        mapping = _coerce_mapping(value)
-        compact: dict[str, Any] = {}
-        limit = self.REASONING_SHORT_LIST_LIMIT if short else self.REASONING_MAP_LIMIT
-        for key, raw_value in list(mapping.items())[:limit]:
-            compact[str(key)] = self._compact_scalar_for_reasoning(raw_value, short=short)
-        return compact
+        limits = self._reasoning_compact_limits()
+        return self._compact_mapping(
+            value,
+            limit=limits["short_list"] if short else limits["map"],
+            short=short,
+            limits=limits,
+        )
 
     def _compact_scalar_for_reasoning(self, value: Any, *, short: bool) -> Any:
-        if isinstance(value, (int, float, bool)) or value is None:
-            return value
-        if isinstance(value, dict):
-            return self._compact_mapping_for_reasoning(value, short=True)
-        if isinstance(value, list):
-            return self._compact_string_list_for_reasoning(value, short=True)
-        text_limit = self.REASONING_SHORT_TEXT_LIMIT if short else self.REASONING_TEXT_LIMIT
-        return self._truncate_reasoning_text(value, text_limit)
+        return self._compact_scalar(value, short=short, limits=self._reasoning_compact_limits())
 
     def _truncate_reasoning_text(self, value: Any, max_chars: int) -> str:
-        text = str(value).strip()
-        if not text:
-            return ""
-        if len(text) <= max_chars:
-            return text
-        return f"{text[: max_chars - 3].rstrip()}..."
+        return _truncate_compact_text(value, max_chars)
 
     def _call_chat_model(
         self,
@@ -3025,15 +2638,17 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         system_prompt: str,
         input_payload: dict[str, Any],
         response_model: type[BaseModel],
+        client: Optional[LocalChatAPIClient] = None,
     ) -> dict[str, Any]:
         serialized_input = json.dumps(input_payload, ensure_ascii=False, sort_keys=True)
         attempted_models: list[str] = []
         last_transport_exc: Optional[ChatBackendTransportError] = None
+        active_client = client or self.client
 
         for candidate_model in self._stage_model_candidates(stage=stage, requested_model=model):
             attempted_models.append(candidate_model)
             try:
-                raw_response = self.client.chat(
+                raw_response = active_client.chat(
                     model=candidate_model,
                     system_prompt=system_prompt,
                     input_text=serialized_input,
@@ -3241,6 +2856,7 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         *,
         contract_context: Optional[dict[str, Any]] = None,
     ) -> str:
+        normalized_stage = str(stage).strip().lower()
         contract = _load_stage_prompt_contract_with_context(stage, contract_context=contract_context)
         prompt_fragment = str(contract.get("prompt_fragment", "Return only a JSON object. Do not use markdown."))
         output_contract = cls._stage_output_contract(stage)
@@ -3288,6 +2904,12 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             instructions.append(
                 f"Use JSON booleans, not strings, for boolean fields: {', '.join(output_contract['boolean_fields'])}."
             )
+        if normalized_stage in {"proposal", "reflection"} and isinstance(contract_context, dict):
+            meta_task_progress = contract_context.get("meta_task_progress")
+            if isinstance(meta_task_progress, dict) and bool(meta_task_progress.get("is_terminal_step", False)):
+                instructions.append(
+                    "Because request.problem_context.meta_task_progress.is_terminal_step is true, stop deferring the solution: return one explicit candidate answer expression or final governing relation for the selected route, write any concrete answer into known_vars.final_answer and known_vars.candidate_answer, and keep equations non-meta."
+                )
         return f"{prompt_fragment} {' '.join(instructions)}"
 
     def _validate_or_repair_payload(
@@ -3410,7 +3032,7 @@ class LocalChatDeletionReviewAdapter(NodeDeletionReviewAdapter):
             return _model_dump(validated)
         except ChatBackendTransportError as exc:
             if self._allow_live_model_fallback:
-                return self._build_local_delete_review_payload(
+                return self._build_unavailable_delete_review_payload(
                     request,
                     reason=str(exc),
                 )
@@ -3430,6 +3052,8 @@ class LocalChatDeletionReviewAdapter(NodeDeletionReviewAdapter):
         *,
         reason: str,
     ) -> dict[str, Any]:
+        """Auto-approval used only in the explicit ``prefer_local_fallback`` fast mode."""
+
         normalized_reason = str(request.reason or "").strip()
         target_id = str(getattr(request.target_node, "id", "")).strip()
         detail_parts = ["Local fallback approved deletion so operator pruning can continue."]
@@ -3442,6 +3066,32 @@ class LocalChatDeletionReviewAdapter(NodeDeletionReviewAdapter):
             "approved": True,
             "reason": " ".join(part for part in detail_parts if part).strip(),
             "risk_level": "medium" if request.descendant_count else "low",
+        }
+
+    def _build_unavailable_delete_review_payload(
+        self,
+        request: DeleteNodeReviewRequest,
+        *,
+        reason: str,
+    ) -> dict[str, Any]:
+        """Denial returned when the review model cannot be reached.
+
+        Deletion is destructive, so an unreachable reviewer must never count as
+        approval; the operator can retry once the review backend is available.
+        """
+
+        target_id = str(getattr(request.target_node, "id", "")).strip()
+        detail_parts = [
+            "Deletion review model was unreachable, so this deletion was not approved.",
+            "Retry once the review backend is available.",
+        ]
+        if target_id:
+            detail_parts.append(f"Target node: {target_id}.")
+        detail_parts.append(str(reason).strip())
+        return {
+            "approved": False,
+            "reason": " ".join(part for part in detail_parts if part).strip(),
+            "risk_level": "high",
         }
 
 
@@ -3457,10 +3107,15 @@ def build_local_chat_adapter_bundle(
     modeling_model: str = DEFAULT_MODELING_MODEL,
     review_model: str = DEFAULT_REVIEW_MODEL,
     non_terminal_evaluation_model: str = DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
-    allow_live_model_fallback: bool = True,
+    allow_live_model_fallback: bool = False,
     prefer_local_fallback: bool = False,
 ) -> tuple[Callable[[dict[str, Any]], ReasoningBackendAdapter], NodeDeletionReviewAdapter]:
-    """Build the planning, modeling, and review adapters for the local ``/api/v1/chat`` endpoint."""
+    """Build the planning, modeling, and review adapters for the local ``/api/v1/chat`` endpoint.
+
+    ``allow_live_model_fallback`` defaults to ``False`` so transport failures
+    surface as errors instead of silently substituting deterministic payloads;
+    callers must opt in to fallback behavior explicitly.
+    """
 
     resolved_requester = requester or (make_openai_requester(api_key) if api_key else None)
     effective_timeout = min(float(timeout), 10.0) if prefer_local_fallback else timeout

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections import deque
 from copy import deepcopy
 from pathlib import Path
-from threading import RLock, Thread
-from typing import Any, Callable, Optional, TypeVar
+from threading import Condition, RLock, Thread
+from typing import Any, Callable, Literal, Optional, TypeVar
 from uuid import uuid4
 
 import os
@@ -66,6 +67,19 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_optional_int(name: str, default: Optional[int]) -> Optional[int]:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    stripped = raw_value.strip()
+    if not stripped:
+        return default
+    value = int(stripped)
+    if value <= 0:
+        return None
+    return value
+
+
 class ChatBackendConfig(BaseModel):
     base_url: str = Field(default_factory=lambda: os.getenv("CHAT_BASE_URL", DEFAULT_CHAT_API_URL))
     planning_model: str = Field(default_factory=lambda: os.getenv("PLANNING_MODEL", DEFAULT_PLANNING_MODEL))
@@ -74,7 +88,7 @@ class ChatBackendConfig(BaseModel):
     non_terminal_evaluation_model: str = Field(default_factory=lambda: os.getenv("NON_TERMINAL_EVALUATION_MODEL", DEFAULT_NON_TERMINAL_EVALUATION_MODEL))
     timeout: float = Field(default_factory=lambda: float(os.getenv("CHAT_TIMEOUT", "600")), gt=0.0)
     allow_live_model_fallback: bool = Field(
-        default_factory=lambda: _env_bool("ALLOW_LIVE_MODEL_FALLBACK", True),
+        default_factory=lambda: _env_bool("ALLOW_LIVE_MODEL_FALLBACK", False),
         description="Allow local deterministic fallback only after live model transport failures.",
     )
     prefer_local_fallback: bool = Field(
@@ -84,15 +98,30 @@ class ChatBackendConfig(BaseModel):
 
 
 class SchedulerConfig(BaseModel):
+    depth_preset: Literal["low", "medium", "high"] = "medium"
     max_reflections: int = Field(default=2, ge=0)
     max_tree_depth: int = Field(default=8, ge=0)
     max_frontier_size: int = Field(default=16, ge=1)
-    max_children_per_expansion: int = Field(default=6, ge=1)
+    max_children_per_expansion: int = Field(default=3, ge=1)
+    max_live_children_per_batch: int = Field(default=2, ge=1)
+    max_total_expansions: Optional[int] = Field(
+        default_factory=lambda: _env_optional_int("TOT_MAX_TOTAL_EXPANSIONS", 64),
+        ge=1,
+        description="Hard ceiling on lifetime expansions per session; null (or env value <= 0) means unlimited.",
+    )
+    use_local_root_proposal: bool = True
+    use_local_root_evaluation: bool = True
+    use_local_child_proposal: bool = True
+    use_local_child_evaluation: bool = True
     max_frontier_per_diversity_key: int = Field(default=4, ge=1)
     children_key: str = "children"
 
 
 class CreateSessionRequest(BaseModel):
+    problem_prompt: str = Field(
+        default="",
+        description="Optional plain-text problem statement used to backfill problem_context.problem_statement when missing.",
+    )
     problem_context: dict[str, Any] = Field(
         default_factory=dict,
         description="Optional structured context merged with problem_statement. See /api/tot/defaults for the UI draft shape.",
@@ -140,15 +169,25 @@ class SessionDeleteResponse(BaseModel):
 class SchedulerSessionStore:
     """In-memory session store for live ToT schedulers."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_active_auto_runs: Optional[int] = 3) -> None:
         self._sessions: dict[str, ToTTreeScheduler] = {}
         self._session_locks: dict[str, RLock] = {}
         self._session_snapshots: dict[str, dict[str, Any]] = {}
         self._lock = RLock()
+        self.max_active_auto_runs = (
+            None if max_active_auto_runs is None else max(1, int(max_active_auto_runs))
+        )
+        self._active_auto_run_sessions: set[str] = set()
+        self._auto_run_wait_queue: deque[str] = deque()
+        self._auto_run_condition = Condition(self._lock)
+
+    @staticmethod
+    def _freeze_snapshot(scheduler: ToTTreeScheduler) -> dict[str, Any]:
+        return deepcopy(scheduler.snapshot())
 
     def create(self, scheduler: ToTTreeScheduler) -> str:
         session_id = uuid4().hex
-        snapshot = jsonable_encoder(scheduler.snapshot())
+        snapshot = self._freeze_snapshot(scheduler)
         with self._lock:
             self._sessions[session_id] = scheduler
             self._session_locks[session_id] = RLock()
@@ -170,15 +209,15 @@ class SchedulerSessionStore:
         if scheduler is None or session_lock is None:
             raise KeyError(session_id)
         if not session_lock.acquire(blocking=False):
-            return self._merge_snapshot_with_live_run_state(cached_snapshot, scheduler)
+            return jsonable_encoder(self._merge_snapshot_with_live_run_state(cached_snapshot, scheduler))
         try:
-            snapshot = jsonable_encoder(scheduler.snapshot())
+            snapshot = self._freeze_snapshot(scheduler)
         finally:
             session_lock.release()
 
         with self._lock:
             self._session_snapshots[session_id] = snapshot
-        return deepcopy(snapshot)
+        return jsonable_encoder(deepcopy(snapshot))
 
     def execute(
         self,
@@ -192,13 +231,13 @@ class SchedulerSessionStore:
             raise KeyError(session_id)
         with session_lock:
             result = operation(scheduler)
-            snapshot = jsonable_encoder(scheduler.snapshot())
+            snapshot = self._freeze_snapshot(scheduler)
         with self._lock:
             self._session_snapshots[session_id] = snapshot
         return result
 
     def publish_snapshot(self, session_id: str, scheduler: ToTTreeScheduler) -> None:
-        snapshot = jsonable_encoder(scheduler.snapshot())
+        snapshot = self._freeze_snapshot(scheduler)
         with self._lock:
             if session_id not in self._sessions:
                 raise KeyError(session_id)
@@ -210,11 +249,76 @@ class SchedulerSessionStore:
         if session_lock is None:
             return False
         with session_lock:
-            with self._lock:
+            with self._auto_run_condition:
                 deleted = self._sessions.pop(session_id, None) is not None
                 self._session_locks.pop(session_id, None)
                 self._session_snapshots.pop(session_id, None)
+                self._active_auto_run_sessions.discard(session_id)
+                self._remove_from_auto_run_wait_queue(session_id)
+                self._auto_run_condition.notify_all()
                 return deleted
+
+    def _remove_from_auto_run_wait_queue(self, session_id: str) -> None:
+        if not self._auto_run_wait_queue:
+            return
+        self._auto_run_wait_queue = deque(
+            queued_session_id
+            for queued_session_id in self._auto_run_wait_queue
+            if queued_session_id != session_id
+        )
+
+    def _enqueue_auto_run_waiter(self, session_id: str) -> None:
+        if session_id in self._active_auto_run_sessions:
+            return
+        if session_id in self._auto_run_wait_queue:
+            return
+        self._auto_run_wait_queue.append(session_id)
+
+    def try_acquire_auto_run_slot(self, session_id: str) -> bool:
+        with self._auto_run_condition:
+            if session_id not in self._sessions:
+                raise KeyError(session_id)
+            if self.max_active_auto_runs is None:
+                self._remove_from_auto_run_wait_queue(session_id)
+                self._active_auto_run_sessions.add(session_id)
+                return True
+            if session_id in self._active_auto_run_sessions:
+                return True
+            if self._auto_run_wait_queue and self._auto_run_wait_queue[0] != session_id:
+                self._enqueue_auto_run_waiter(session_id)
+                return False
+            if len(self._active_auto_run_sessions) < self.max_active_auto_runs:
+                self._remove_from_auto_run_wait_queue(session_id)
+                self._active_auto_run_sessions.add(session_id)
+                return True
+            self._enqueue_auto_run_waiter(session_id)
+            return False
+
+    def wait_for_auto_run_slot(self, session_id: str, timeout: float = 0.05) -> None:
+        with self._auto_run_condition:
+            if session_id not in self._sessions:
+                raise KeyError(session_id)
+            self._auto_run_condition.wait(timeout=timeout)
+            if session_id not in self._sessions:
+                raise KeyError(session_id)
+
+    def release_auto_run_slot(self, session_id: str) -> None:
+        with self._auto_run_condition:
+            removed = session_id in self._active_auto_run_sessions
+            self._active_auto_run_sessions.discard(session_id)
+            if removed:
+                self._auto_run_condition.notify_all()
+
+    def mark_auto_run_waiting(self, session_id: str) -> None:
+        self.execute(
+            session_id,
+            lambda scheduler: getattr(scheduler, "_set_run_state", lambda **_: None)(
+                status="busy",
+                phase="queued-active-slot",
+                last_error="",
+            )
+            or scheduler,
+        )
 
     def _merge_snapshot_with_live_run_state(
         self,
@@ -222,12 +326,16 @@ class SchedulerSessionStore:
         scheduler: ToTTreeScheduler,
     ) -> dict[str, Any]:
         snapshot = deepcopy(cached_snapshot) if cached_snapshot else {}
+        in_flight_expansion = getattr(scheduler, "_in_flight_expansion", None)
         snapshot["run_state"] = {
             "status": str(getattr(scheduler, "run_status", "idle")),
             "phase": str(getattr(scheduler, "run_phase", "created")),
             "problem_context_prepared": bool(getattr(scheduler, "_problem_context_prepared", False)),
             "auto_run_requested": bool(getattr(scheduler, "auto_run_requested", False)),
             "last_error": str(getattr(scheduler, "last_error", "")),
+            "in_flight_expansion": deepcopy(in_flight_expansion)
+            if isinstance(in_flight_expansion, dict)
+            else None,
         }
         return snapshot
 
@@ -288,16 +396,8 @@ def _default_adapter_bundle_factory(
     )
 
 
-def _serialize_state(scheduler: ToTTreeScheduler) -> dict[str, Any]:
-    return _prune_budget_fields(jsonable_encoder(scheduler.snapshot()))
-
-
 def _serialize_session_state(store: SchedulerSessionStore, session_id: str) -> dict[str, Any]:
     return _prune_budget_fields(store.snapshot(session_id))
-
-
-def _run_scheduler(scheduler: ToTTreeScheduler, additional_budget: int) -> ToTTreeScheduler:
-    return _run_scheduler_with_progress(scheduler, additional_budget)
 
 
 def _run_scheduler_with_progress(
@@ -323,22 +423,59 @@ def _run_scheduler_until_complete(
     def publish_progress(scheduler: ToTTreeScheduler) -> None:
         session_store.publish_snapshot(session_id, scheduler)
 
-    state = session_store.execute(
-        session_id,
+    def has_remaining_scheduler_work(state: dict[str, Any]) -> bool:
+        if state.get("frontier"):
+            return True
+        run_state = state.get("run_state") or {}
+        return isinstance(run_state.get("in_flight_expansion"), dict)
+
+    def has_in_flight_expansion(state: dict[str, Any]) -> bool:
+        run_state = state.get("run_state") or {}
+        return isinstance(run_state.get("in_flight_expansion"), dict)
+
+    def total_expansion_cap_reached(state: dict[str, Any]) -> bool:
+        cap = state.get("max_total_expansions")
+        if not isinstance(cap, int) or cap <= 0:
+            return False
+        return int(state.get("expansions_used", 0)) >= cap
+
+    def execute_auto_run_slice(
+        operation: Callable[[ToTTreeScheduler], dict[str, Any]],
+    ) -> dict[str, Any]:
+        waiting_marked = False
+        while True:
+            if session_store.try_acquire_auto_run_slot(session_id):
+                break
+            if not waiting_marked:
+                session_store.mark_auto_run_waiting(session_id)
+                waiting_marked = True
+            session_store.wait_for_auto_run_slot(session_id)
+
+        try:
+            return session_store.execute(session_id, operation)
+        finally:
+            session_store.release_auto_run_slot(session_id)
+
+    state = execute_auto_run_slice(
         lambda scheduler: _run_scheduler_with_progress(
             scheduler,
             0,
             progress_callback=publish_progress,
-        ).snapshot(),
+        ).snapshot()
     )
-    while state.get("frontier"):
-        state = session_store.execute(
-            session_id,
-            lambda scheduler: _run_scheduler_with_progress(
+    while has_remaining_scheduler_work(state):
+        cap_reached = total_expansion_cap_reached(state)
+        if cap_reached and not has_in_flight_expansion(state):
+            # The lifetime expansion ceiling is exhausted; only finish a parked
+            # batch (additional budget 0), never start a new expansion.
+            break
+        additional_budget = 0 if cap_reached else 1
+        state = execute_auto_run_slice(
+            lambda scheduler, additional_budget=additional_budget: _run_scheduler_with_progress(
                 scheduler,
-                1,
+                additional_budget,
                 progress_callback=publish_progress,
-            ).snapshot(),
+            ).snapshot()
         )
     return state
 
@@ -387,7 +524,7 @@ def _delete_scheduler_node(
     *,
     node_id: str,
     request: DeleteNodeRequest,
-) -> tuple[ToTTreeScheduler, dict[str, Any]]:
+) -> dict[str, Any]:
     result = scheduler.delete_node(
         node_id,
         reason=request.reason,
@@ -408,7 +545,7 @@ def _delete_scheduler_node(
         )
     else:
         result["steering"] = {}
-    return scheduler, result
+    return result
 
 
 def create_app(
@@ -417,7 +554,9 @@ def create_app(
     adapter_bundle_factory: Optional[AdapterBundleFactory] = None,
 ) -> FastAPI:
     app = FastAPI(title="ToT API", version="0.1.0")
-    app.state.session_store = session_store or SchedulerSessionStore()
+    app.state.session_store = session_store or SchedulerSessionStore(
+        max_active_auto_runs=_env_optional_int("TOT_MAX_ACTIVE_AUTO_RUNS", 3)
+    )
     app.state.adapter_bundle_factory = adapter_bundle_factory or _default_adapter_bundle_factory
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="frontend-static")
 
@@ -437,17 +576,33 @@ def create_app(
     def create_session(request: CreateSessionRequest) -> SessionStateResponse:
         try:
             backend_factory, deletion_review_adapter = app.state.adapter_bundle_factory(request.backend)
+            root_problem_context = deepcopy(request.problem_context)
+            problem_prompt = str(request.problem_prompt or "").strip()
+            problem_statement = str(root_problem_context.get("problem_statement", "")).strip()
+            if not problem_statement:
+                task_fallback = str(root_problem_context.get("task", "")).strip()
+                objective_fallback = str(root_problem_context.get("objective", "")).strip()
+                problem_statement = problem_prompt or task_fallback or objective_fallback
+            if problem_statement:
+                root_problem_context["problem_statement"] = problem_statement
+            root_problem_context["reasoning_depth_preset"] = request.scheduler.depth_preset
             scheduler = ToTTreeScheduler(
-                root_problem_context=deepcopy(request.problem_context),
+                root_problem_context=root_problem_context,
                 max_reflections=request.scheduler.max_reflections,
                 expansion_budget=0,
                 max_tree_depth=request.scheduler.max_tree_depth,
                 max_frontier_size=request.scheduler.max_frontier_size,
                 max_children_per_expansion=request.scheduler.max_children_per_expansion,
+                max_live_children_per_batch=request.scheduler.max_live_children_per_batch,
+                use_local_root_proposal=request.scheduler.use_local_root_proposal,
+                use_local_root_evaluation=request.scheduler.use_local_root_evaluation,
+                use_local_child_proposal=request.scheduler.use_local_child_proposal,
+                use_local_child_evaluation=request.scheduler.use_local_child_evaluation,
                 max_frontier_per_diversity_key=request.scheduler.max_frontier_per_diversity_key,
                 children_key=request.scheduler.children_key,
                 backend_adapter_factory=backend_factory,
                 deletion_review_adapter=deletion_review_adapter,
+                max_total_expansions=request.scheduler.max_total_expansions,
             )
             scheduler.auto_run_requested = bool(request.run_on_create)
             scheduler.run_status = "busy" if request.run_on_create else "idle"
@@ -480,7 +635,7 @@ def create_app(
     @app.delete("/api/tot/sessions/{session_id}/nodes/{node_id}", response_model=DeleteNodeResponse)
     def delete_node(session_id: str, node_id: str, request: DeleteNodeRequest) -> DeleteNodeResponse:
         try:
-            scheduler, result = _execute_session_or_404(
+            result = _execute_session_or_404(
                 app,
                 session_id,
                 lambda current_scheduler: _delete_scheduler_node(
@@ -502,7 +657,9 @@ def create_app(
             if request.run_after_delete and bool(result["deleted"]):
                 state = _prune_budget_fields(_run_scheduler_until_complete(app.state.session_store, session_id))
             else:
-                state = _serialize_state(scheduler)
+                # Serialize through the session store so the read happens under the
+                # session lock instead of racing a concurrent auto-run thread.
+                state = _serialize_session_state(app.state.session_store, session_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Session not found.") from exc
         except ChatBackendError as exc:

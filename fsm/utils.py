@@ -11,12 +11,41 @@ from typing import Any
 
 from pydantic import BaseModel
 
+# Shared meta-task guidance for the strategy-scan phase; scheduler and backend
+# must present the same instruction or route planning drifts between layers.
+META_TASK_STRATEGY_SCAN_GUIDANCE = (
+    "Analyze the next-step strategy space at planning level. "
+    "Make one route-local planning claim only, keep all other routes deferred, and do not solve the final answer yet."
+)
+
 
 def _model_field_names(model_type: type[BaseModel]) -> set[str]:
     try:
         return set(model_type.model_fields)
     except AttributeError:
         return set(model_type.__fields__)
+
+
+def _build_model(model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
+    """Construct a schema-locked Pydantic model with v1/v2 compatibility."""
+
+    unexpected = set(payload) - _model_field_names(model_type)
+    if unexpected:
+        names = ", ".join(sorted(unexpected))
+        raise ValueError(f"Unexpected fields for {model_type.__name__}: {names}")
+    try:
+        return model_type.model_validate(payload)
+    except AttributeError:
+        return model_type.parse_obj(payload)
+
+
+def _model_dump(model: BaseModel) -> dict[str, Any]:
+    """Serialize a Pydantic model with v1/v2 compatibility."""
+
+    try:
+        return model.model_dump()
+    except AttributeError:
+        return model.dict()
 
 
 def _normalize_signature_value(value: Any) -> Any:
@@ -56,7 +85,10 @@ def _deserialize_blob(blob: str) -> Any:
 
 
 __all__ = [
+    "META_TASK_STRATEGY_SCAN_GUIDANCE",
+    "_build_model",
     "_deserialize_blob",
+    "_model_dump",
     "_model_field_names",
     "_normalize_signature_value",
     "_serialize_blob",

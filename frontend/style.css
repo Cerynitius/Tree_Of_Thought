@@ -461,9 +461,24 @@ button {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.button-grid.depth-presets {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .button-grid.session-actions {
   margin-top: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panel-note,
+.depth-preset-summary {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(171, 250, 183, 0.12);
+  background: rgba(9, 18, 11, 0.82);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .action-legend {
@@ -502,6 +517,13 @@ button {
 
 .action-button:hover {
   border-color: var(--line-strong);
+}
+
+.action-button.is-active,
+.action-button[aria-pressed="true"] {
+  border-color: rgba(246, 255, 171, 0.55);
+  background: linear-gradient(180deg, rgba(62, 96, 43, 0.98), rgba(38, 63, 28, 0.98));
+  color: #f5ffe3;
 }
 
 .action-button.primary {
@@ -610,13 +632,20 @@ button {
 .result-card-score {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   width: fit-content;
+  min-width: 84px;
   padding: 8px 10px;
   border: 1px solid rgba(246, 255, 171, 0.18);
   background: rgba(38, 63, 28, 0.3);
   color: var(--accent-strong);
   font-size: 32px;
   line-height: 1;
+}
+
+.result-card-meta {
+  display: block;
+  min-width: 0;
 }
 
 .result-card-section {
@@ -667,23 +696,6 @@ button {
   font-size: 12px;
 }
 
-.result-card-thought,
-.candidate-thought {
-  color: var(--text);
-  line-height: 1.45;
-  overflow-wrap: break-word;
-}
-
-.result-card-thought {
-  display: block;
-  min-width: 0;
-  max-height: 120px;
-  overflow: auto;
-  padding: 10px;
-  border: 1px solid rgba(171, 250, 183, 0.12);
-  background: rgba(12, 21, 14, 0.72);
-}
-
 .candidate-results-wrap {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -706,7 +718,7 @@ button {
   grid-template-columns: 32px minmax(0, 1fr);
   gap: 8px;
   width: 100%;
-  min-height: 112px;
+  min-height: 88px;
   padding: 8px;
   color: inherit;
   text-align: left;
@@ -730,10 +742,6 @@ button {
   display: grid;
   gap: 4px;
   min-width: 0;
-}
-
-.candidate-thought {
-  font-size: 12px;
 }
 
 .candidate-empty {
@@ -1196,8 +1204,23 @@ button {
     margin-left: 0;
   }
 
+  .button-grid.depth-presets {
+    grid-template-columns: 1fr;
+  }
+
   .results-grid {
     grid-template-columns: 1fr;
+  }
+
+  .best-result-header {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .result-card-score {
+    min-width: 0;
+    width: fit-content;
+    font-size: 26px;
   }
 
   .detail-facts,

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ToT Terminal</title>
-  <link rel="stylesheet" href="/static/style.css?v=17">
+  <link rel="stylesheet" href="/static/style.css?v=19">
 </head>
 <body>
   <div id="app" class="shell">
@@ -112,11 +112,16 @@
         <details class="panel-section collapsible-section">
           <summary class="section-title collapsible-title">ADVANCED SETTINGS</summary>
 
-          <div class="subsection-title">Backend connection</div>
-          <div class="button-grid compact">
-            <button id="applyRecommendedPresetButton" class="action-button secondary" type="button">APPLY RECOMMENDED PRESET</button>
+          <div class="subsection-title">Depth preset</div>
+          <div class="button-grid depth-presets" role="group" aria-label="reasoning depth presets">
+            <button id="applyLowDepthPresetButton" class="action-button secondary" type="button">LOW DEPTH</button>
+            <button id="applyMediumDepthPresetButton" class="action-button secondary" type="button">MEDIUM DEPTH</button>
+            <button id="applyHighDepthPresetButton" class="action-button secondary" type="button">HIGH DEPTH</button>
           </div>
-          <div class="panel-note">Recommended now: qwen3.5-9b-mlx for all roles, live-first calls, timeout 120s, fallback only after transport failure.</div>
+          <div id="depthPresetSummary" class="depth-preset-summary">MEDIUM DEPTH: timeout 600s | live-first fallback on failure | 8-step decomposition | balanced divergence.</div>
+
+          <div class="subsection-title">Backend connection</div>
+          <div class="panel-note">The depth preset applies timeout, fallback policy, backend step decomposition, and scheduler branching limits together. Root route scan now respects the same child surface cap, and deeper route-local divergence is still deduped more aggressively.</div>
           <label class="field-label" for="baseUrlInput">Base URL</label>
           <input id="baseUrlInput" class="text-input" type="text" value="http://localhost:1234/api/v1/chat">
           <label class="field-label" for="planningModelInput">Planning model</label>
@@ -128,15 +133,7 @@
           <label class="field-label" for="nonTerminalEvaluationModelInput">Non-terminal evaluation model</label>
           <input id="nonTerminalEvaluationModelInput" class="text-input" type="text" value="qwen3.5-9b-mlx">
           <label class="field-label" for="timeoutInput">Timeout seconds</label>
-          <input id="timeoutInput" class="text-input" type="number" min="1" step="1" value="120">
-          <label class="toggle-row" for="allowLiveModelFallbackToggle">
-            <input id="allowLiveModelFallbackToggle" type="checkbox" checked>
-            <span>allow fallback after model failure</span>
-          </label>
-          <label class="toggle-row" for="preferLocalFallbackToggle">
-            <input id="preferLocalFallbackToggle" type="checkbox">
-            <span>prefer local fallback before live model</span>
-          </label>
+          <input id="timeoutInput" class="text-input" type="number" min="1" step="1" value="600">
 
           <div class="subsection-title">JSON payloads</div>
           <label class="field-label" for="problemContextInput">Problem context JSON</label>
@@ -169,10 +166,6 @@
               <span class="result-card-section">
                 <span class="result-card-label">Final answer</span>
                 <span id="bestResultFormula" class="result-card-formula result-card-answer">No formula yet.</span>
-              </span>
-              <span class="result-card-section">
-                <span class="result-card-label">Winning branch</span>
-                <span id="bestResultThought" class="result-card-thought">Run a session to populate scored leaves.</span>
               </span>
             </button>
             <div class="candidate-results-wrap">
@@ -211,6 +204,6 @@
   <noscript>
     <div class="noscript-banner">This GUI requires JavaScript to talk to the ToT API.</div>
   </noscript>
-  <script src="/static/app.js?v=18" defer></script>
+  <script src="/static/app.js?v=25" defer></script>
 </body>
 </html>

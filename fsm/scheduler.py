@@ -16,7 +16,14 @@ from .backend import (
 )
 from .builder import NodeBuilderFSM
 from .models import NodeSnapshot, NodeStatus, ToTNode
-from .utils import _deserialize_blob, _model_field_names, _serialize_blob, _stable_hash
+from .utils import (
+    META_TASK_STRATEGY_SCAN_GUIDANCE as _META_TASK_STRATEGY_SCAN_GUIDANCE,
+    _build_model,
+    _deserialize_blob,
+    _model_dump,
+    _serialize_blob,
+    _stable_hash,
+)
 
 
 class TreeSchedulerState(BaseModel):
@@ -49,10 +56,7 @@ class ToTTreeScheduler:
     ``children`` entries for deeper expansion.
     """
 
-    META_TASK_STRATEGY_SCAN_GUIDANCE = (
-        "Analyze the next-step strategy space at planning level. "
-        "Make one route-local planning claim only, keep all other routes deferred, and do not solve the final answer yet."
-    )
+    META_TASK_STRATEGY_SCAN_GUIDANCE = _META_TASK_STRATEGY_SCAN_GUIDANCE
 
     def __init__(
         self,
@@ -63,19 +67,29 @@ class ToTTreeScheduler:
         max_tree_depth: int = 8,
         max_frontier_size: int = 16,
         max_children_per_expansion: int = 6,
+        max_live_children_per_batch: Optional[int] = None,
+        use_local_root_proposal: bool = False,
+        use_local_root_evaluation: bool = False,
+        use_local_child_proposal: bool = False,
+        use_local_child_evaluation: bool = False,
         max_frontier_per_diversity_key: int = 4,
         children_key: str = "children",
         backend_adapter_factory: Optional[Callable[[dict[str, Any]], ReasoningBackendAdapter]] = None,
         deletion_review_adapter: Optional[NodeDeletionReviewAdapter] = None,
+        max_total_expansions: Optional[int] = None,
     ) -> None:
         if expansion_budget < 0:
             raise ValueError("expansion_budget must be non-negative.")
+        if max_total_expansions is not None and max_total_expansions < 1:
+            raise ValueError("max_total_expansions must be at least 1 when provided.")
         if max_tree_depth < 0:
             raise ValueError("max_tree_depth must be non-negative.")
         if max_frontier_size < 1:
             raise ValueError("max_frontier_size must be at least 1.")
         if max_children_per_expansion < 1:
             raise ValueError("max_children_per_expansion must be at least 1.")
+        if max_live_children_per_batch is not None and max_live_children_per_batch < 1:
+            raise ValueError("max_live_children_per_batch must be at least 1 when provided.")
         if max_frontier_per_diversity_key < 1:
             raise ValueError("max_frontier_per_diversity_key must be at least 1.")
 
@@ -85,10 +99,17 @@ class ToTTreeScheduler:
         self.max_tree_depth = max_tree_depth
         self.max_frontier_size = max_frontier_size
         self.max_children_per_expansion = max_children_per_expansion
+        self.max_live_children_per_batch = max_live_children_per_batch
+        self.use_local_root_proposal = bool(use_local_root_proposal)
+        self.use_local_root_evaluation = bool(use_local_root_evaluation)
+        self.use_local_child_proposal = bool(use_local_child_proposal)
+        self.use_local_child_evaluation = bool(use_local_child_evaluation)
         self.max_frontier_per_diversity_key = max_frontier_per_diversity_key
         self.children_key = children_key
         self.backend_adapter_factory = backend_adapter_factory
         self.deletion_review_adapter = deletion_review_adapter
+        # Hard ceiling on lifetime expansions for this session; None means unlimited.
+        self.max_total_expansions = max_total_expansions
 
         self.root_node: Optional[ToTNode] = None
         self._frontier: list[dict[str, Any]] = []
@@ -102,6 +123,8 @@ class ToTTreeScheduler:
         self.run_phase = "created"
         self.last_error = ""
         self.auto_run_requested = False
+        self._in_flight_expansion: Optional[dict[str, Any]] = None
+        self._pending_expansion: Optional[dict[str, Any]] = None
 
     def _set_run_state(
         self,
@@ -116,6 +139,136 @@ class ToTTreeScheduler:
             self.run_phase = str(phase)
         if last_error is not None:
             self.last_error = str(last_error)
+
+    def _live_child_batch_limit(self) -> int:
+        configured_limit = self.max_live_children_per_batch
+        if configured_limit is None:
+            return max(1, self.max_children_per_expansion)
+        return max(1, min(self.max_children_per_expansion, int(configured_limit)))
+
+    def _has_pending_expansion(self) -> bool:
+        return isinstance(self._pending_expansion, dict) and isinstance(
+            self._pending_expansion.get("parent_node"), ToTNode
+        )
+
+    def _start_pending_expansion(
+        self,
+        *,
+        parent_node: ToTNode,
+        problem_context: dict[str, Any],
+        depth: int,
+        child_contexts: list[dict[str, Any]],
+    ) -> None:
+        self._pending_expansion = {
+            "parent_node": parent_node,
+            "problem_context": problem_context,
+            "depth": depth,
+            "expected_child_count": len(child_contexts),
+            "remaining_child_contexts": list(child_contexts),
+            "built_children": [],
+        }
+        self._restore_in_flight_expansion_from_pending()
+
+    def _restore_in_flight_expansion_from_pending(self) -> None:
+        if not self._has_pending_expansion():
+            self._clear_in_flight_expansion()
+            return
+        pending_expansion = self._pending_expansion or {}
+        parent_node = pending_expansion["parent_node"]
+        depth = int(pending_expansion.get("depth", 0))
+        remaining_child_contexts = pending_expansion.get("remaining_child_contexts") or []
+        built_children = pending_expansion.get("built_children") or []
+        built_child_ids = [
+            child.id
+            for child, _child_context in built_children
+            if isinstance(child, ToTNode)
+        ]
+        self._in_flight_expansion = {
+            "parent_id": parent_node.id,
+            "parent_depth": depth,
+            "expected_child_count": max(
+                0,
+                int(
+                    pending_expansion.get(
+                        "expected_child_count",
+                        len(built_child_ids) + len(remaining_child_contexts),
+                    )
+                ),
+            ),
+            "built_child_count": len(built_child_ids),
+            "built_child_ids": built_child_ids,
+            "remaining_child_count": len(remaining_child_contexts),
+            "live_batch_limit": self._live_child_batch_limit(),
+        }
+
+    def _clear_pending_expansion(self) -> None:
+        self._pending_expansion = None
+        self._clear_in_flight_expansion()
+
+    def _begin_in_flight_expansion(
+        self,
+        *,
+        parent_node: ToTNode,
+        depth: int,
+        expected_child_count: int,
+        remaining_child_count: Optional[int] = None,
+    ) -> None:
+        self._in_flight_expansion = {
+            "parent_id": parent_node.id,
+            "parent_depth": depth,
+            "expected_child_count": max(0, int(expected_child_count)),
+            "built_child_count": 0,
+            "built_child_ids": [],
+            "remaining_child_count": max(
+                0,
+                int(expected_child_count if remaining_child_count is None else remaining_child_count),
+            ),
+            "live_batch_limit": self._live_child_batch_limit(),
+        }
+
+    def _note_in_flight_child(
+        self,
+        child_node: ToTNode,
+        *,
+        remaining_child_count: Optional[int] = None,
+    ) -> None:
+        if not isinstance(self._in_flight_expansion, dict):
+            return
+        built_child_ids = self._in_flight_expansion.setdefault("built_child_ids", [])
+        if isinstance(built_child_ids, list):
+            built_child_ids.append(child_node.id)
+            self._in_flight_expansion["built_child_count"] = len(built_child_ids)
+        if remaining_child_count is not None:
+            self._in_flight_expansion["remaining_child_count"] = max(0, int(remaining_child_count))
+
+    def _clear_in_flight_expansion(self) -> None:
+        self._in_flight_expansion = None
+
+    def _repair_pending_expansion_after_delete(self, deleted_node_ids: list[str]) -> None:
+        """Drop or prune a parked expansion whose nodes were just deleted.
+
+        Without this, resuming after a deletion would expand onto a detached
+        subtree: the pending parent (or its built children) no longer belong to
+        the tree once the operator removes them.
+        """
+
+        if not self._has_pending_expansion():
+            return
+        deleted_ids = set(deleted_node_ids)
+        pending_expansion = self._pending_expansion or {}
+        parent_node = pending_expansion.get("parent_node")
+        if not isinstance(parent_node, ToTNode) or parent_node.id in deleted_ids:
+            self._clear_pending_expansion()
+            return
+        built_children = pending_expansion.get("built_children") or []
+        surviving_children = [
+            (child_node, child_context)
+            for child_node, child_context in built_children
+            if isinstance(child_node, ToTNode) and child_node.id not in deleted_ids
+        ]
+        if len(surviving_children) != len(built_children):
+            pending_expansion["built_children"] = surviving_children
+        self._restore_in_flight_expansion_from_pending()
 
     def _prepare_root_problem_context_if_needed(self) -> None:
         if self._problem_context_prepared:
@@ -143,6 +296,10 @@ class ToTTreeScheduler:
     def run(self, progress_callback: Optional[Callable[[], None]] = None) -> dict[str, Any]:
         """Build the root node and expand the tree under scheduler constraints."""
         self._set_run_state(status="busy", phase="preparing-meta-task", last_error="")
+        if self._has_pending_expansion():
+            self._restore_in_flight_expansion_from_pending()
+        else:
+            self._clear_in_flight_expansion()
 
         try:
             self._prepare_root_problem_context_if_needed()
@@ -165,24 +322,63 @@ class ToTTreeScheduler:
                 if progress_callback is not None:
                     progress_callback()
 
-            while self._frontier and len(self._expanded_node_ids) < self.expansion_budget:
+            while self._has_pending_expansion() or (
+                self._frontier and len(self._expanded_node_ids) < self.expansion_budget
+            ):
                 self._set_run_state(status="busy", phase="expanding-frontier")
-                current = self._frontier.pop(0)
-                parent_node = current["node"]
-                problem_context = current["problem_context"]
-                depth = current["depth"]
+                if self._has_pending_expansion():
+                    pending_expansion = self._pending_expansion or {}
+                    self._restore_in_flight_expansion_from_pending()
+                else:
+                    current = self._frontier.pop(0)
+                    parent_node = current["node"]
+                    problem_context = current["problem_context"]
+                    depth = current["depth"]
 
-                child_contexts = self._extract_child_contexts(problem_context)
-                if not child_contexts:
-                    continue
+                    child_contexts = self._extract_child_contexts(problem_context)
+                    if not child_contexts:
+                        continue
 
-                self._expanded_node_ids.append(parent_node.id)
-                built_children: list[tuple[ToTNode, dict[str, Any]]] = []
-                for child_context in child_contexts:
-                    child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
+                    self._expanded_node_ids.append(parent_node.id)
+                    self._start_pending_expansion(
+                        parent_node=parent_node,
+                        problem_context=problem_context,
+                        depth=depth,
+                        child_contexts=child_contexts,
+                    )
+                    pending_expansion = self._pending_expansion or {}
+                if progress_callback is not None:
+                    progress_callback()
+
+                parent_node = pending_expansion["parent_node"]
+                problem_context = pending_expansion["problem_context"]
+                depth = int(pending_expansion["depth"])
+                remaining_child_contexts = pending_expansion["remaining_child_contexts"]
+                built_children = pending_expansion["built_children"]
+                child_batch_limit = min(
+                    self._live_child_batch_limit(),
+                    len(remaining_child_contexts),
+                )
+                for _batch_index in range(child_batch_limit):
+                    child_context = remaining_child_contexts.pop(0)
+                    try:
+                        child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
+                    except Exception:
+                        # Put the context back so a later run() retries this child
+                        # instead of silently dropping it from the batch.
+                        remaining_child_contexts.insert(0, child_context)
+                        raise
                     built_children.append((child_node, child_context))
+                    self._note_in_flight_child(
+                        child_node,
+                        remaining_child_count=len(remaining_child_contexts),
+                    )
                     if progress_callback is not None:
                         progress_callback()
+
+                if remaining_child_contexts:
+                    self._restore_in_flight_expansion_from_pending()
+                    break
 
                 ranked_children = sorted(
                     built_children,
@@ -265,7 +461,7 @@ class ToTTreeScheduler:
                         "duplicate_child_ids": [
                             child.id
                             for child, _ in ranked_children
-                            if child.known_vars.get("scheduler_action") == "merged-duplicate"
+                            if child.known_vars.get("scheduler_action") in {"merged-duplicate", "merged-semantic-duplicate"}
                         ],
                         "loop_suppressed_child_ids": [
                             child.id
@@ -276,12 +472,26 @@ class ToTTreeScheduler:
                         "frontier_size_after": len(self._frontier),
                     }
                 )
+                self._clear_pending_expansion()
                 if progress_callback is not None:
                     progress_callback()
         except Exception as exc:
+            if self._has_pending_expansion():
+                # Children built so far are already attached to the parent and the
+                # parent's budget entry is consumed; keep the pending batch so a
+                # later run() resumes it instead of stranding those children.
+                self._restore_in_flight_expansion_from_pending()
+            else:
+                self._clear_pending_expansion()
             self._set_run_state(status="error", phase="error", last_error=str(exc))
             raise
 
+        if self._has_pending_expansion():
+            self._restore_in_flight_expansion_from_pending()
+            self._set_run_state(status="busy", phase="expanding-frontier", last_error="")
+            return self.snapshot()
+
+        self._clear_pending_expansion()
         self._set_run_state(status="ready", phase=self._final_run_phase(), last_error="")
         return self.snapshot()
 
@@ -297,9 +507,15 @@ class ToTTreeScheduler:
             "expanded_node_ids": list(self._expanded_node_ids),
             "expansions_used": len(self._expanded_node_ids),
             "expansion_budget": self.expansion_budget,
+            "max_total_expansions": self.max_total_expansions,
             "max_tree_depth": self.max_tree_depth,
             "target_expansion_budget": self.target_expansion_budget,
             "remaining_budget": self.expansion_budget - len(self._expanded_node_ids),
+            "max_live_children_per_batch": self.max_live_children_per_batch,
+            "use_local_root_proposal": self.use_local_root_proposal,
+            "use_local_root_evaluation": self.use_local_root_evaluation,
+            "use_local_child_proposal": self.use_local_child_proposal,
+            "use_local_child_evaluation": self.use_local_child_evaluation,
             "run_state": {
                 "status": self.run_status,
                 "phase": self.run_phase,
@@ -307,6 +523,9 @@ class ToTTreeScheduler:
                 "auto_run_requested": self.auto_run_requested,
                 "target_expansion_budget": self.target_expansion_budget,
                 "last_error": self.last_error,
+                "in_flight_expansion": deepcopy(self._in_flight_expansion)
+                if isinstance(self._in_flight_expansion, dict)
+                else None,
             },
         }
 
@@ -356,7 +575,7 @@ class ToTTreeScheduler:
             is_frontier_node=any(entry["node"].id == node_id for entry in self._frontier),
             is_expanded_node=node_id in self._expanded_node_ids,
         )
-        review = self._build_model(
+        review = _build_model(
             DeleteNodeReviewDecision,
             self._normalize_review_payload(
                 effective_review_adapter.review_delete_node(review_request)
@@ -369,7 +588,7 @@ class ToTTreeScheduler:
                 "node_id": node_id,
                 "parent_id": parent_node.id,
                 "deleted_node_ids": [],
-                "review": self._model_dump(review),
+                "review": _model_dump(review),
                 "frontier": self._frontier_snapshot(),
                 "steering_route_focus": steering_route_focus,
             }
@@ -385,6 +604,7 @@ class ToTTreeScheduler:
             expanded_id for expanded_id in self._expanded_node_ids if expanded_id not in deleted_node_ids
         ]
 
+        self._repair_pending_expansion_after_delete(deleted_node_ids)
         self._resync_runtime_state()
         self._expansion_log.append(
             {
@@ -393,7 +613,7 @@ class ToTTreeScheduler:
                 "node_id": node_id,
                 "parent_id": parent_node.id,
                 "deleted_node_ids": deleted_node_ids,
-                "review": self._model_dump(review),
+                "review": _model_dump(review),
                 "frontier_size_after": len(self._frontier),
             }
         )
@@ -403,7 +623,7 @@ class ToTTreeScheduler:
             "node_id": node_id,
             "parent_id": parent_node.id,
             "deleted_node_ids": deleted_node_ids,
-            "review": self._model_dump(review),
+            "review": _model_dump(review),
             "frontier": self._frontier_snapshot(),
             "steering_route_focus": steering_route_focus,
         }
@@ -499,6 +719,12 @@ class ToTTreeScheduler:
             problem_context=problem_context,
             max_reflections=self.max_reflections,
             backend_adapter=self._make_backend_adapter(problem_context),
+            use_local_proposal=(
+                self.use_local_child_proposal if parent_node is not None else self.use_local_root_proposal
+            ),
+            use_local_evaluation=(
+                self.use_local_child_evaluation if parent_node is not None else self.use_local_root_evaluation
+            ),
         )
         node = fsm.run()
         route_focus = problem_context.get("route_focus")
@@ -521,6 +747,14 @@ class ToTTreeScheduler:
                 node.known_vars["operator_steering_prompt"] = prompt
         meta_task_progress = problem_context.get("meta_task_progress")
         if isinstance(meta_task_progress, dict):
+            phase = str(meta_task_progress.get("phase", "")).strip()
+            if phase and not str(node.known_vars.get("meta_task_phase", "")).strip():
+                node.known_vars["meta_task_phase"] = phase
+            try:
+                step_index = int(meta_task_progress.get("current_step_index", 0))
+            except (TypeError, ValueError):
+                step_index = 0
+            node.known_vars.setdefault("meta_task_step_index", step_index)
             selected_route_family = str(meta_task_progress.get("selected_route_family", "")).strip()
             if selected_route_family and not str(node.known_vars.get("route_family", "")).strip():
                 node.known_vars["route_family"] = selected_route_family
@@ -1109,45 +1343,284 @@ class ToTTreeScheduler:
 
         canonical_id = self._signature_registry.get(signature)
         if canonical_id is not None and canonical_id != node.id:
-            canonical_node = self._node_index.get(canonical_id)
-            node.known_vars["merged_into_node_id"] = canonical_id
-            node.known_vars["suppressed_by_scheduler"] = "duplicate"
-            if canonical_node is not None:
-                canonical_node.known_vars.setdefault("merged_duplicate_node_ids", []).append(node.id)
-                canonical_node.known_vars.setdefault("merged_duplicate_parent_ids", []).append(parent_node.id)
-                canonical_node.known_vars["merged_duplicate_count"] = len(
-                    canonical_node.known_vars.get("merged_duplicate_node_ids", [])
-                )
-                canonical_node.score = max(canonical_node.score, node.score)
-                canonical_priority = self._node_priority(canonical_node)
-                duplicate_priority = self._node_priority(node)
-                canonical_node.known_vars["expansion_priority"] = max(
-                    canonical_priority,
-                    duplicate_priority,
-                )
-            return "merged-duplicate"
+            return self._merge_into_canonical_node(
+                node,
+                parent_node,
+                canonical_id,
+                suppressed_by="duplicate",
+                scheduler_action="merged-duplicate",
+            )
+
+        semantic_canonical_id = self._semantic_repeat_canonical_id(node, parent_node)
+        if semantic_canonical_id is not None and semantic_canonical_id != node.id:
+            return self._merge_into_canonical_node(
+                node,
+                parent_node,
+                semantic_canonical_id,
+                suppressed_by="semantic-duplicate",
+                scheduler_action="merged-semantic-duplicate",
+            )
 
         self._signature_registry[signature] = node.id
         return None
 
+    def _merge_into_canonical_node(
+        self,
+        node: ToTNode,
+        parent_node: ToTNode,
+        canonical_id: str,
+        *,
+        suppressed_by: str,
+        scheduler_action: str,
+    ) -> str:
+        canonical_node = self._node_index.get(canonical_id)
+        node.known_vars["merged_into_node_id"] = canonical_id
+        node.known_vars["suppressed_by_scheduler"] = suppressed_by
+        if canonical_node is not None:
+            canonical_node.known_vars.setdefault("merged_duplicate_node_ids", []).append(node.id)
+            canonical_node.known_vars.setdefault("merged_duplicate_parent_ids", []).append(parent_node.id)
+            canonical_node.known_vars.setdefault("merged_duplicate_actions", []).append(scheduler_action)
+            canonical_node.known_vars["merged_duplicate_count"] = len(
+                canonical_node.known_vars.get("merged_duplicate_node_ids", [])
+            )
+            canonical_node.score = max(canonical_node.score, node.score)
+            canonical_priority = self._node_priority(canonical_node)
+            duplicate_priority = self._node_priority(node)
+            canonical_node.known_vars["expansion_priority"] = max(
+                canonical_priority,
+                duplicate_priority,
+            )
+        return scheduler_action
+
+    @staticmethod
+    def _normalize_signature_text(value: Any) -> str:
+        return " ".join(str(value or "").strip().lower().split())
+
+    @staticmethod
+    def _normalize_equation_signature_text(value: Any) -> str:
+        return "".join(ch.lower() for ch in str(value or "").strip() if not ch.isspace())
+
+    def _normalize_signature_list(self, values: list[Any]) -> list[Any]:
+        normalized_items: list[Any] = []
+        for value in values:
+            normalized_value = self._normalize_signature_value(value)
+            if normalized_value not in ("", [], {}, None):
+                normalized_items.append(normalized_value)
+        return sorted(normalized_items, key=lambda item: str(item))
+
+    def _normalize_signature_mapping(self, mapping: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {}
+        for raw_key, raw_value in sorted(mapping.items(), key=lambda item: str(item[0])):
+            key = self._normalize_signature_text(raw_key)
+            value = self._normalize_signature_value(raw_value)
+            if key and value not in ("", [], {}, None):
+                normalized[key] = value
+        return normalized
+
+    def _normalize_signature_value(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return self._normalize_signature_mapping(value)
+        if isinstance(value, (list, tuple, set)):
+            return self._normalize_signature_list(list(value))
+        return self._normalize_signature_text(value)
+
+    def _logic_signature_markers(self, node: ToTNode) -> dict[str, Any]:
+        markers: dict[str, Any] = {}
+        for key in (
+            "active_correction",
+            "active_boundary_condition",
+            "active_control_parameter",
+            "final_answer",
+            "candidate_answer",
+            "answer",
+            "result",
+        ):
+            value = self._normalize_signature_value(node.known_vars.get(key))
+            if value not in ("", [], {}, None):
+                markers[key] = value
+
+        orchestrator_task = node.known_vars.get("orchestrator_task")
+        if isinstance(orchestrator_task, dict):
+            selected_task = self._normalize_signature_text(orchestrator_task.get("selected_task", ""))
+            if selected_task:
+                markers["selected_task"] = selected_task
+        return markers
+
+    @staticmethod
+    def _semantic_token_set(values: list[Any]) -> set[str]:
+        stopwords = {
+            "the",
+            "and",
+            "for",
+            "with",
+            "that",
+            "this",
+            "then",
+            "only",
+            "into",
+            "from",
+            "route",
+            "branch",
+            "local",
+            "current",
+            "selected",
+            "before",
+            "after",
+        }
+        tokens: set[str] = set()
+        for value in values:
+            raw = str(value or "").lower()
+            normalized = "".join(ch if ch.isalnum() else " " for ch in raw)
+            for token in normalized.split():
+                if len(token) < 3 or token in stopwords:
+                    continue
+                tokens.add(token)
+        return tokens
+
+    def _semantic_repeat_payload(self, node: ToTNode) -> dict[str, Any]:
+        markers = self._normalize_signature_mapping(self._logic_signature_markers(node))
+        orchestrator_task = node.known_vars.get("orchestrator_task")
+        selected_task = ""
+        if isinstance(orchestrator_task, dict):
+            selected_task = self._normalize_signature_text(orchestrator_task.get("selected_task", ""))
+        normalized_thought = self._normalize_signature_text(node.thought_step)
+        token_values = [selected_task, *node.equations, *[str(value) for value in markers.values()]]
+        normalized_equations = sorted(
+            {
+                self._normalize_equation_signature_text(item)
+                for item in node.equations
+                if self._normalize_equation_signature_text(item)
+            }
+        )
+        return {
+            "used_models": tuple(self._normalize_signature_list(node.used_models)),
+            "thought": normalized_thought,
+            "equations": tuple(normalized_equations),
+            "markers": markers,
+            "tokens": tuple(sorted(self._semantic_token_set(token_values))),
+        }
+
+    @staticmethod
+    def _semantic_overlap_ratio(left_tokens: tuple[str, ...], right_tokens: tuple[str, ...]) -> float:
+        left = set(left_tokens)
+        right = set(right_tokens)
+        if not left or not right:
+            return 0.0
+        return len(left & right) / max(1, min(len(left), len(right)))
+
+    def _is_semantically_repeated_leaf(
+        self,
+        payload: dict[str, Any],
+        canonical_payload: dict[str, Any],
+    ) -> bool:
+        model_compatible = (
+            not payload["used_models"]
+            or not canonical_payload["used_models"]
+            or payload["used_models"] == canonical_payload["used_models"]
+        )
+        if not model_compatible:
+            return False
+        if payload["markers"] and payload["markers"] == canonical_payload["markers"]:
+            return True
+        if payload["equations"] and payload["equations"] == canonical_payload["equations"]:
+            return True
+        if len(payload["tokens"]) >= 5 and len(canonical_payload["tokens"]) >= 5:
+            return self._semantic_overlap_ratio(payload["tokens"], canonical_payload["tokens"]) >= 1.0
+        return False
+
+    def _semantic_repeat_canonical_id(self, node: ToTNode, parent_node: ToTNode) -> Optional[str]:
+        payload = self._semantic_repeat_payload(node)
+        if not payload["thought"] and not payload["markers"] and not payload["equations"] and len(payload["tokens"]) < 4:
+            return None
+
+        node_route_family = str(node.known_vars.get("route_family", "")).strip().lower()
+        node_progress = node.known_vars.get("meta_task_progress")
+        node_step_index: Optional[int] = None
+        node_phase = ""
+        if isinstance(node_progress, dict):
+            maybe_step = node_progress.get("current_step_index")
+            if isinstance(maybe_step, int):
+                node_step_index = maybe_step
+            node_phase = str(node_progress.get("phase", "")).strip().lower()
+
+        seen_canonical_ids: set[str] = set()
+        for sibling in parent_node.children:
+            if sibling.id == node.id:
+                continue
+            scheduler_action = str(sibling.known_vars.get("scheduler_action", "")).strip()
+            if not scheduler_action:
+                continue
+
+            sibling_route_family = str(sibling.known_vars.get("route_family", "")).strip().lower()
+            if node_route_family and sibling_route_family and sibling_route_family != node_route_family:
+                continue
+
+            sibling_progress = sibling.known_vars.get("meta_task_progress")
+            if isinstance(sibling_progress, dict):
+                sibling_step = sibling_progress.get("current_step_index")
+                if isinstance(node_step_index, int) and isinstance(sibling_step, int) and sibling_step != node_step_index:
+                    continue
+                sibling_phase = str(sibling_progress.get("phase", "")).strip().lower()
+                if node_phase and sibling_phase and sibling_phase != node_phase:
+                    continue
+
+            canonical_id = str(sibling.known_vars.get("merged_into_node_id") or sibling.id)
+            if canonical_id in seen_canonical_ids:
+                continue
+            seen_canonical_ids.add(canonical_id)
+            canonical_node = self._node_index.get(canonical_id)
+            if canonical_node is None or canonical_node.id == node.id:
+                continue
+            if canonical_node.status != NodeStatus.ACTIVE:
+                continue
+            canonical_payload = self._semantic_repeat_payload(canonical_node)
+            if self._is_semantically_repeated_leaf(payload, canonical_payload):
+                return canonical_node.id
+        return None
+
     def _compute_state_signature(self, node: ToTNode) -> str:
         signature_payload = {
-            "equations": sorted(str(item) for item in node.equations),
-            "used_models": sorted(str(item) for item in node.used_models),
-            "quantities": {str(key): value for key, value in node.quantities.items()},
-            "boundary_conditions": {
-                str(key): value for key, value in node.boundary_conditions.items()
-            },
+            "thought_step": self._normalize_signature_text(node.thought_step),
+            "equations": self._normalize_signature_list(node.equations),
+            "used_models": self._normalize_signature_list(node.used_models),
+            "quantities": self._normalize_signature_mapping(node.quantities),
+            "boundary_conditions": self._normalize_signature_mapping(node.boundary_conditions),
+            "logic_markers": self._logic_signature_markers(node),
         }
-        route_family = str(node.known_vars.get("route_family", "")).strip()
-        correction_mode = str(node.known_vars.get("correction_mode", "")).strip()
-        correction_target = str(node.known_vars.get("correction_target", "")).strip()
-        distributed_reasoning_slot = str(node.known_vars.get("distributed_reasoning_slot", "")).strip()
-        if route_family or correction_mode or correction_target or distributed_reasoning_slot:
-            signature_payload["route_family"] = route_family
-            signature_payload["correction_mode"] = correction_mode
-            signature_payload["correction_target"] = correction_target
-            signature_payload["distributed_reasoning_slot"] = distributed_reasoning_slot
+
+        phase = self._normalize_signature_text(node.known_vars.get("meta_task_phase", ""))
+        try:
+            step_index = int(node.known_vars.get("meta_task_step_index", -1))
+        except (TypeError, ValueError):
+            step_index = -1
+        preserve_route_signature = phase == "strategy_scan" or step_index == 0
+
+        route_family = self._normalize_signature_text(node.known_vars.get("route_family", ""))
+        correction_mode = self._normalize_signature_text(node.known_vars.get("correction_mode", ""))
+        correction_target = self._normalize_signature_text(node.known_vars.get("correction_target", ""))
+        if preserve_route_signature and (route_family or correction_mode or correction_target):
+            signature_payload["route_hint"] = {
+                "route_family": route_family,
+                "correction_mode": correction_mode,
+                "correction_target": correction_target,
+            }
+
+        elif not any(
+            (
+                signature_payload["thought_step"],
+                signature_payload["equations"],
+                signature_payload["used_models"],
+                signature_payload["quantities"],
+                signature_payload["boundary_conditions"],
+                signature_payload["logic_markers"],
+            )
+        ):
+            if route_family or correction_mode or correction_target:
+                signature_payload["route_hint"] = {
+                    "route_family": route_family,
+                    "correction_mode": correction_mode,
+                    "correction_target": correction_target,
+                }
         return _stable_hash(signature_payload)
 
     def _compute_diversity_key(self, node: ToTNode) -> str:
@@ -1222,8 +1695,6 @@ class ToTTreeScheduler:
     def _route_surface_budget(self, problem_context: Optional[dict[str, Any]] = None) -> int:
         if self.expansion_budget - len(self._expanded_node_ids) <= 0:
             return 0
-        if self._is_root_strategy_scan_route_surface(problem_context):
-            return max(1, self.max_frontier_size)
         return max(
             1,
             min(
@@ -1233,8 +1704,6 @@ class ToTTreeScheduler:
         )
 
     def _frontier_candidate_budget(self, problem_context: Optional[dict[str, Any]] = None) -> int:
-        if self._is_root_strategy_scan_route_surface(problem_context):
-            return max(1, self.max_frontier_size)
         # Cap only the sibling slice for this expansion. Frontier capacity is
         # enforced later in _rebalance_frontier so lower-scored but distinct
         # route families or correction modes can still compete for retention.
@@ -1343,8 +1812,21 @@ class ToTTreeScheduler:
             "max_tree_depth": self.max_tree_depth,
             "max_frontier_size": self.max_frontier_size,
             "max_children_per_expansion": self.max_children_per_expansion,
+            "max_live_children_per_batch": self.max_live_children_per_batch,
+            "use_local_root_proposal": self.use_local_root_proposal,
+            "use_local_root_evaluation": self.use_local_root_evaluation,
+            "use_local_child_proposal": self.use_local_child_proposal,
+            "use_local_child_evaluation": self.use_local_child_evaluation,
             "max_frontier_per_diversity_key": self.max_frontier_per_diversity_key,
             "children_key": self.children_key,
+            "problem_context_prepared": self._problem_context_prepared,
+            "target_expansion_budget": self.target_expansion_budget,
+            "run_status": self.run_status,
+            "run_phase": self.run_phase,
+            "last_error": self.last_error,
+            "auto_run_requested": self.auto_run_requested,
+            "in_flight_expansion": self._in_flight_expansion,
+            "pending_expansion": self._pending_expansion,
         }
         state = TreeSchedulerState(snapshot_blob=_serialize_blob(snapshot))
         path = Path(file_path)
@@ -1378,6 +1860,11 @@ class ToTTreeScheduler:
             max_tree_depth=snapshot.get("max_tree_depth", 8),
             max_frontier_size=snapshot["max_frontier_size"],
             max_children_per_expansion=snapshot["max_children_per_expansion"],
+            max_live_children_per_batch=snapshot.get("max_live_children_per_batch"),
+            use_local_root_proposal=bool(snapshot.get("use_local_root_proposal", False)),
+            use_local_root_evaluation=bool(snapshot.get("use_local_root_evaluation", False)),
+            use_local_child_proposal=bool(snapshot.get("use_local_child_proposal", False)),
+            use_local_child_evaluation=bool(snapshot.get("use_local_child_evaluation", False)),
             max_frontier_per_diversity_key=snapshot["max_frontier_per_diversity_key"],
             children_key=snapshot["children_key"],
             backend_adapter_factory=backend_adapter_factory,
@@ -1388,8 +1875,18 @@ class ToTTreeScheduler:
         scheduler._expansion_log = snapshot["expansion_log"]
         scheduler._expanded_node_ids = snapshot["expanded_node_ids"]
         scheduler._signature_registry = snapshot["signature_registry"]
+        scheduler._problem_context_prepared = bool(snapshot.get("problem_context_prepared", False))
+        scheduler.target_expansion_budget = int(snapshot.get("target_expansion_budget", scheduler.expansion_budget))
+        scheduler.run_status = str(snapshot.get("run_status", scheduler.run_status))
+        scheduler.run_phase = str(snapshot.get("run_phase", scheduler.run_phase))
+        scheduler.last_error = str(snapshot.get("last_error", scheduler.last_error))
+        scheduler.auto_run_requested = bool(snapshot.get("auto_run_requested", False))
+        scheduler._pending_expansion = snapshot.get("pending_expansion")
+        scheduler._in_flight_expansion = snapshot.get("in_flight_expansion")
         if scheduler.root_node is not None:
             scheduler._rebuild_node_index(scheduler.root_node)
+        if scheduler._has_pending_expansion():
+            scheduler._restore_in_flight_expansion_from_pending()
         return scheduler
 
     def _rebuild_node_index(self, node: ToTNode) -> None:
@@ -1419,26 +1916,10 @@ class ToTTreeScheduler:
         payload: BaseModel | dict[str, Any],
     ) -> dict[str, Any]:
         if isinstance(payload, BaseModel):
-            return self._model_dump(payload)
+            return _model_dump(payload)
         if isinstance(payload, dict):
             return dict(payload)
         raise TypeError("Deletion review adapter must return a Pydantic model or a dictionary payload.")
-
-    def _build_model(self, model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
-        unexpected = set(payload) - _model_field_names(model_type)
-        if unexpected:
-            names = ", ".join(sorted(unexpected))
-            raise ValueError(f"Unexpected fields for {model_type.__name__}: {names}")
-        try:
-            return model_type.model_validate(payload)
-        except AttributeError:
-            return model_type.parse_obj(payload)
-
-    def _model_dump(self, model: BaseModel) -> dict[str, Any]:
-        try:
-            return model.model_dump()
-        except AttributeError:
-            return model.dict()
 
     def _collect_subtree_nodes(self, node: ToTNode) -> list[ToTNode]:
         collected = [node]

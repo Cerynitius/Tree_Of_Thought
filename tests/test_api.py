@@ -1,3 +1,4 @@
+import os
 import unittest
 import time
 
@@ -11,6 +12,7 @@ from fsm import (
     ProposalRequest,
     ReasoningBackendAdapter,
     ReflectionRequest,
+    ToTTreeScheduler,
 )
 from tests.test_harness import ApproveDeleteReviewAdapter, MetaTaskStepBackendAdapter
 from tot_api import (
@@ -26,6 +28,27 @@ def deterministic_adapter_bundle(_config: ChatBackendConfig):
         return DeterministicContextBackendAdapter(problem_context)
 
     return backend_factory, ApproveDeleteReviewAdapter()
+
+
+CHAT_BACKEND_ENV_KEYS = (
+    "CHAT_BASE_URL",
+    "CHAT_TIMEOUT",
+    "PLANNING_MODEL",
+    "MODELING_MODEL",
+    "REVIEW_MODEL",
+    "NON_TERMINAL_EVALUATION_MODEL",
+    "ALLOW_LIVE_MODEL_FALLBACK",
+    "PREFER_LOCAL_FALLBACK",
+)
+
+
+def clear_chat_backend_env(test: unittest.TestCase) -> None:
+    """Remove local .env overrides so ChatBackendConfig tests see built-in defaults."""
+
+    for key in CHAT_BACKEND_ENV_KEYS:
+        original = os.environ.pop(key, None)
+        if original is not None:
+            test.addCleanup(os.environ.__setitem__, key, original)
 
 
 class FailingBackendAdapter(ReasoningBackendAdapter):
@@ -84,6 +107,21 @@ class SlowProgressBackendAdapter(DeterministicContextBackendAdapter):
         return super().reflect(request)
 
 
+class VerySlowProgressBackendAdapter(DeterministicContextBackendAdapter):
+    name = "very-slow-progress-backend"
+
+    def propose(self, request: ProposalRequest) -> dict[str, object]:
+        time.sleep(0.25)
+        return super().propose(request)
+
+    def evaluate(self, request: EvaluationRequest) -> dict[str, object]:
+        time.sleep(0.25)
+        return super().evaluate(request)
+
+    def reflect(self, request: ReflectionRequest) -> dict[str, object]:
+        return super().reflect(request)
+
+
 class NoOpDeletionReviewAdapter(NodeDeletionReviewAdapter):
     name = "noop-delete-review"
 
@@ -121,6 +159,13 @@ def slow_progress_adapter_bundle(_config: ChatBackendConfig):
     return backend_factory, ApproveDeleteReviewAdapter()
 
 
+def very_slow_progress_adapter_bundle(_config: ChatBackendConfig):
+    def backend_factory(problem_context: dict[str, object]):
+        return VerySlowProgressBackendAdapter(problem_context)
+
+    return backend_factory, ApproveDeleteReviewAdapter()
+
+
 def meta_task_auto_bundle(_config: ChatBackendConfig):
     def backend_factory(problem_context: dict[str, object]):
         del problem_context
@@ -148,14 +193,16 @@ class ToTAPITests(unittest.TestCase):
         self.assertIn("candidateResults", response.text)
         self.assertIn("/static/app.js", response.text)
 
-    def test_chat_backend_config_defaults_to_live_first_local_qwen_settings(self) -> None:
+    def test_chat_backend_config_defaults_to_live_only_local_qwen_settings(self) -> None:
+        clear_chat_backend_env(self)
         config = ChatBackendConfig()
 
         self.assertEqual(config.timeout, 600.0)
-        self.assertTrue(config.allow_live_model_fallback)
+        self.assertFalse(config.allow_live_model_fallback)
         self.assertFalse(config.prefer_local_fallback)
 
     def test_chat_backend_config_defaults_to_local_qwen_model_for_all_roles(self) -> None:
+        clear_chat_backend_env(self)
         config = ChatBackendConfig()
 
         self.assertEqual(config.planning_model, "qwen3.5-9b-mlx")
@@ -169,9 +216,120 @@ class ToTAPITests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["problem_context"], DEFAULT_PROBLEM_CONTEXT_DRAFT)
+        self.assertEqual(payload["scheduler"]["depth_preset"], "medium")
         self.assertEqual(payload["scheduler"]["max_tree_depth"], 8)
+        self.assertEqual(payload["scheduler"]["max_live_children_per_batch"], 2)
+        self.assertTrue(payload["scheduler"]["use_local_root_proposal"])
+        self.assertTrue(payload["scheduler"]["use_local_root_evaluation"])
+        self.assertTrue(payload["scheduler"]["use_local_child_proposal"])
+        self.assertTrue(payload["scheduler"]["use_local_child_evaluation"])
         self.assertEqual(payload["scheduler"]["children_key"], "children")
         self.assertNotIn("expansion_budget", payload["scheduler"])
+
+    def test_active_session_cap_reacquire_respects_fifo_wait_order(self) -> None:
+        store = SchedulerSessionStore(max_active_auto_runs=1)
+        first_session_id = store.create(ToTTreeScheduler(root_problem_context={"problem_statement": "first"}))
+        second_session_id = store.create(ToTTreeScheduler(root_problem_context={"problem_statement": "second"}))
+
+        self.assertTrue(store.try_acquire_auto_run_slot(first_session_id))
+        self.assertFalse(store.try_acquire_auto_run_slot(second_session_id))
+
+        store.release_auto_run_slot(first_session_id)
+
+        self.assertFalse(store.try_acquire_auto_run_slot(first_session_id))
+        self.assertTrue(store.try_acquire_auto_run_slot(second_session_id))
+
+        store.release_auto_run_slot(second_session_id)
+
+        self.assertTrue(store.try_acquire_auto_run_slot(first_session_id))
+
+    def test_create_session_injects_reasoning_depth_preset_into_backend_context(self) -> None:
+        captured = {}
+
+        def recording_bundle(config: ChatBackendConfig):
+            del config
+
+            def backend_factory(problem_context: dict[str, object]):
+                captured["problem_context"] = dict(problem_context)
+                return DeterministicContextBackendAdapter(problem_context)
+
+            return backend_factory, ApproveDeleteReviewAdapter()
+
+        client = TestClient(
+            create_app(
+                session_store=SchedulerSessionStore(),
+                adapter_bundle_factory=recording_bundle,
+            )
+        )
+
+        create = client.post(
+            "/api/tot/sessions",
+            json={
+                "run_on_create": False,
+                "scheduler": {
+                    "depth_preset": "high",
+                },
+                "problem_context": {
+                    "proposal": {"equations": ["root_eq"]},
+                    "calculation": {
+                        "skill_params": {"required_equation_patterns": ["root_eq"]}
+                    },
+                    "evaluation": {"score": 8.0},
+                },
+            },
+        )
+
+        self.assertEqual(create.status_code, 200)
+        session_id = create.json()["session_id"]
+        run = client.post(f"/api/tot/sessions/{session_id}/run")
+
+        self.assertEqual(run.status_code, 200)
+        self.assertEqual(captured["problem_context"]["reasoning_depth_preset"], "high")
+
+    def test_create_session_backfills_problem_statement_from_problem_prompt(self) -> None:
+        captured = {}
+
+        def recording_bundle(config: ChatBackendConfig):
+            del config
+
+            def backend_factory(problem_context: dict[str, object]):
+                captured["problem_context"] = dict(problem_context)
+                return DeterministicContextBackendAdapter(problem_context)
+
+            return backend_factory, ApproveDeleteReviewAdapter()
+
+        client = TestClient(
+            create_app(
+                session_store=SchedulerSessionStore(),
+                adapter_bundle_factory=recording_bundle,
+            )
+        )
+
+        create = client.post(
+            "/api/tot/sessions",
+            json={
+                "run_on_create": False,
+                "problem_prompt": "Solve the spring-block problem.",
+                "problem_context": {
+                    "task": "task fallback",
+                    "proposal": {"equations": ["root_eq"]},
+                    "calculation": {
+                        "skill_params": {"required_equation_patterns": ["root_eq"]}
+                    },
+                    "evaluation": {"score": 8.0},
+                },
+            },
+        )
+
+        self.assertEqual(create.status_code, 200)
+        session_id = create.json()["session_id"]
+        run = client.post(f"/api/tot/sessions/{session_id}/run")
+
+        self.assertEqual(run.status_code, 200)
+        self.assertEqual(
+            captured["problem_context"]["problem_statement"],
+            "Solve the spring-block problem.",
+        )
 
     def test_create_session_accepts_custom_non_terminal_evaluation_model(self) -> None:
         captured = {}
@@ -312,6 +470,57 @@ class ToTAPITests(unittest.TestCase):
         self.assertEqual(state["root"]["children"][0]["children"], [])
         self.assertEqual(state["frontier"], [])
 
+    def test_run_session_stops_at_max_total_expansions_cap(self) -> None:
+        create = self.client.post(
+            "/api/tot/sessions",
+            json={
+                "run_on_create": False,
+                "scheduler": {"max_total_expansions": 1},
+                "problem_context": {
+                    "proposal": {"equations": ["root_eq"]},
+                    "calculation": {
+                        "skill_params": {"required_equation_patterns": ["root_eq"]}
+                    },
+                    "evaluation": {"score": 8.0},
+                    "children": [
+                        {
+                            "proposal": {"equations": ["child_eq"]},
+                            "calculation": {
+                                "skill_params": {"required_equation_patterns": ["child_eq"]}
+                            },
+                            "evaluation": {"score": 8.0},
+                            "children": [
+                                {
+                                    "proposal": {"equations": ["grand_eq"]},
+                                    "calculation": {
+                                        "skill_params": {"required_equation_patterns": ["grand_eq"]}
+                                    },
+                                    "evaluation": {"score": 8.0},
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+        session_id = create.json()["session_id"]
+
+        run = self.client.post(f"/api/tot/sessions/{session_id}/run")
+
+        self.assertEqual(run.status_code, 200)
+        state = run.json()["state"]
+        self.assertEqual(state["max_total_expansions"], 1)
+        self.assertEqual(state["expansions_used"], 1)
+        self.assertEqual(len(state["frontier"]), 1)
+        self.assertEqual(state["run_state"]["status"], "ready")
+
+        rerun = self.client.post(f"/api/tot/sessions/{session_id}/run")
+
+        self.assertEqual(rerun.status_code, 200)
+        rerun_state = rerun.json()["state"]
+        self.assertEqual(rerun_state["expansions_used"], 1)
+        self.assertEqual(len(rerun_state["frontier"]), 1)
+
     def test_delete_node_endpoint_reviews_then_deletes(self) -> None:
         create = self.client.post(
             "/api/tot/sessions",
@@ -449,6 +658,10 @@ class ToTAPITests(unittest.TestCase):
             "/api/tot/sessions",
             json={
                 "run_on_create": False,
+                "scheduler": {
+                    "use_local_root_proposal": False,
+                    "use_local_root_evaluation": False,
+                },
                 "problem_context": {
                     "proposal": {"equations": ["root_eq"]},
                     "calculation": {
@@ -479,6 +692,12 @@ class ToTAPITests(unittest.TestCase):
             "/api/tot/sessions",
             json={
                 "run_on_create": True,
+                "scheduler": {
+                    "max_children_per_expansion": 3,
+                    "max_live_children_per_batch": 1,
+                    "use_local_root_proposal": False,
+                    "use_local_root_evaluation": False,
+                },
                 "problem_context": {
                     "proposal": {"equations": ["root_eq"]},
                     "calculation": {
@@ -647,6 +866,10 @@ class ToTAPITests(unittest.TestCase):
             "/api/tot/sessions",
             json={
                 "run_on_create": True,
+                "scheduler": {
+                    "use_local_child_proposal": False,
+                    "use_local_child_evaluation": False,
+                },
                 "problem_context": {
                     "proposal": {"equations": ["root_eq"]},
                     "calculation": {
@@ -668,6 +891,13 @@ class ToTAPITests(unittest.TestCase):
                             },
                             "evaluation": {"score": 8.0},
                         },
+                        {
+                            "proposal": {"equations": ["child_eq_3"]},
+                            "calculation": {
+                                "skill_params": {"required_equation_patterns": ["child_eq_3"]}
+                            },
+                            "evaluation": {"score": 8.0},
+                        },
                     ],
                 },
             },
@@ -677,6 +907,7 @@ class ToTAPITests(unittest.TestCase):
         session_id = response.json()["session_id"]
 
         saw_child_while_busy = False
+        saw_in_flight_expansion = False
         final_state = None
         deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:
@@ -685,11 +916,78 @@ class ToTAPITests(unittest.TestCase):
             children = root.get("children") or []
             if final_state["run_state"]["status"] == "busy" and len(children) >= 1:
                 saw_child_while_busy = True
-            if final_state["run_state"]["status"] != "busy" and len(children) == 2:
+                in_flight_expansion = final_state["run_state"].get("in_flight_expansion")
+                if isinstance(in_flight_expansion, dict):
+                    self.assertEqual(in_flight_expansion.get("parent_id"), root.get("id"))
+                    self.assertEqual(in_flight_expansion.get("expected_child_count"), 3)
+                    self.assertGreaterEqual(int(in_flight_expansion.get("built_child_count", 0)), 1)
+                    self.assertGreaterEqual(int(in_flight_expansion.get("remaining_child_count", 0)), 1)
+                    saw_in_flight_expansion = True
+            if final_state["run_state"]["status"] != "busy" and len(children) == 3:
                 break
             time.sleep(0.02)
 
         self.assertTrue(saw_child_while_busy)
+        self.assertTrue(saw_in_flight_expansion)
         self.assertIsNotNone(final_state)
         self.assertEqual(final_state["run_state"]["status"], "ready")
-        self.assertEqual(len(final_state["root"]["children"]), 2)
+        self.assertIsNone(final_state["run_state"].get("in_flight_expansion"))
+        self.assertEqual(len(final_state["root"]["children"]), 3)
+
+    def test_background_run_active_session_cap_queues_second_session_until_slot_frees(self) -> None:
+        client = TestClient(
+            create_app(
+                session_store=SchedulerSessionStore(max_active_auto_runs=1),
+                adapter_bundle_factory=very_slow_progress_adapter_bundle,
+            )
+        )
+
+        payload = {
+            "run_on_create": True,
+            "scheduler": {
+                "max_children_per_expansion": 1,
+                "max_live_children_per_batch": 1,
+                "use_local_child_proposal": False,
+                "use_local_child_evaluation": False,
+            },
+            "problem_context": {
+                "proposal": {"equations": ["root_eq"]},
+                "calculation": {
+                    "skill_params": {"required_equation_patterns": ["root_eq"]}
+                },
+                "evaluation": {"score": 8.0},
+                "children": [
+                    {
+                        "proposal": {"equations": ["child_eq_1"]},
+                        "calculation": {
+                            "skill_params": {"required_equation_patterns": ["child_eq_1"]}
+                        },
+                        "evaluation": {"score": 8.0},
+                    }
+                ],
+            },
+        }
+
+        first = client.post("/api/tot/sessions", json=payload)
+        self.assertEqual(first.status_code, 200)
+        time.sleep(0.02)
+        second = client.post("/api/tot/sessions", json=payload)
+        self.assertEqual(second.status_code, 200)
+
+        second_session_id = second.json()["session_id"]
+        saw_queued_second = False
+        final_second = None
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            final_second = client.get(f"/api/tot/sessions/{second_session_id}").json()["state"]
+            phase = final_second["run_state"].get("phase")
+            if phase == "queued-active-slot":
+                saw_queued_second = True
+            if final_second["run_state"].get("status") == "ready":
+                break
+            time.sleep(0.02)
+
+        self.assertTrue(saw_queued_second)
+        self.assertIsNotNone(final_second)
+        self.assertEqual(final_second["run_state"]["status"], "ready")
+        self.assertGreaterEqual(final_second["expansions_used"], 1)
