@@ -16,7 +16,14 @@ from .backend import (
 )
 from .builder import NodeBuilderFSM
 from .models import NodeSnapshot, NodeStatus, ToTNode
-from .utils import _deserialize_blob, _model_field_names, _serialize_blob, _stable_hash
+from .utils import (
+    META_TASK_STRATEGY_SCAN_GUIDANCE as _META_TASK_STRATEGY_SCAN_GUIDANCE,
+    _build_model,
+    _deserialize_blob,
+    _model_dump,
+    _serialize_blob,
+    _stable_hash,
+)
 
 
 class TreeSchedulerState(BaseModel):
@@ -49,10 +56,7 @@ class ToTTreeScheduler:
     ``children`` entries for deeper expansion.
     """
 
-    META_TASK_STRATEGY_SCAN_GUIDANCE = (
-        "Analyze the next-step strategy space at planning level. "
-        "Make one route-local planning claim only, keep all other routes deferred, and do not solve the final answer yet."
-    )
+    META_TASK_STRATEGY_SCAN_GUIDANCE = _META_TASK_STRATEGY_SCAN_GUIDANCE
 
     def __init__(
         self,
@@ -72,9 +76,12 @@ class ToTTreeScheduler:
         children_key: str = "children",
         backend_adapter_factory: Optional[Callable[[dict[str, Any]], ReasoningBackendAdapter]] = None,
         deletion_review_adapter: Optional[NodeDeletionReviewAdapter] = None,
+        max_total_expansions: Optional[int] = None,
     ) -> None:
         if expansion_budget < 0:
             raise ValueError("expansion_budget must be non-negative.")
+        if max_total_expansions is not None and max_total_expansions < 1:
+            raise ValueError("max_total_expansions must be at least 1 when provided.")
         if max_tree_depth < 0:
             raise ValueError("max_tree_depth must be non-negative.")
         if max_frontier_size < 1:
@@ -101,6 +108,8 @@ class ToTTreeScheduler:
         self.children_key = children_key
         self.backend_adapter_factory = backend_adapter_factory
         self.deletion_review_adapter = deletion_review_adapter
+        # Hard ceiling on lifetime expansions for this session; None means unlimited.
+        self.max_total_expansions = max_total_expansions
 
         self.root_node: Optional[ToTNode] = None
         self._frontier: list[dict[str, Any]] = []
@@ -235,6 +244,32 @@ class ToTTreeScheduler:
     def _clear_in_flight_expansion(self) -> None:
         self._in_flight_expansion = None
 
+    def _repair_pending_expansion_after_delete(self, deleted_node_ids: list[str]) -> None:
+        """Drop or prune a parked expansion whose nodes were just deleted.
+
+        Without this, resuming after a deletion would expand onto a detached
+        subtree: the pending parent (or its built children) no longer belong to
+        the tree once the operator removes them.
+        """
+
+        if not self._has_pending_expansion():
+            return
+        deleted_ids = set(deleted_node_ids)
+        pending_expansion = self._pending_expansion or {}
+        parent_node = pending_expansion.get("parent_node")
+        if not isinstance(parent_node, ToTNode) or parent_node.id in deleted_ids:
+            self._clear_pending_expansion()
+            return
+        built_children = pending_expansion.get("built_children") or []
+        surviving_children = [
+            (child_node, child_context)
+            for child_node, child_context in built_children
+            if isinstance(child_node, ToTNode) and child_node.id not in deleted_ids
+        ]
+        if len(surviving_children) != len(built_children):
+            pending_expansion["built_children"] = surviving_children
+        self._restore_in_flight_expansion_from_pending()
+
     def _prepare_root_problem_context_if_needed(self) -> None:
         if self._problem_context_prepared:
             return
@@ -326,7 +361,13 @@ class ToTTreeScheduler:
                 )
                 for _batch_index in range(child_batch_limit):
                     child_context = remaining_child_contexts.pop(0)
-                    child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
+                    try:
+                        child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
+                    except Exception:
+                        # Put the context back so a later run() retries this child
+                        # instead of silently dropping it from the batch.
+                        remaining_child_contexts.insert(0, child_context)
+                        raise
                     built_children.append((child_node, child_context))
                     self._note_in_flight_child(
                         child_node,
@@ -435,7 +476,13 @@ class ToTTreeScheduler:
                 if progress_callback is not None:
                     progress_callback()
         except Exception as exc:
-            self._clear_pending_expansion()
+            if self._has_pending_expansion():
+                # Children built so far are already attached to the parent and the
+                # parent's budget entry is consumed; keep the pending batch so a
+                # later run() resumes it instead of stranding those children.
+                self._restore_in_flight_expansion_from_pending()
+            else:
+                self._clear_pending_expansion()
             self._set_run_state(status="error", phase="error", last_error=str(exc))
             raise
 
@@ -460,6 +507,7 @@ class ToTTreeScheduler:
             "expanded_node_ids": list(self._expanded_node_ids),
             "expansions_used": len(self._expanded_node_ids),
             "expansion_budget": self.expansion_budget,
+            "max_total_expansions": self.max_total_expansions,
             "max_tree_depth": self.max_tree_depth,
             "target_expansion_budget": self.target_expansion_budget,
             "remaining_budget": self.expansion_budget - len(self._expanded_node_ids),
@@ -527,7 +575,7 @@ class ToTTreeScheduler:
             is_frontier_node=any(entry["node"].id == node_id for entry in self._frontier),
             is_expanded_node=node_id in self._expanded_node_ids,
         )
-        review = self._build_model(
+        review = _build_model(
             DeleteNodeReviewDecision,
             self._normalize_review_payload(
                 effective_review_adapter.review_delete_node(review_request)
@@ -540,7 +588,7 @@ class ToTTreeScheduler:
                 "node_id": node_id,
                 "parent_id": parent_node.id,
                 "deleted_node_ids": [],
-                "review": self._model_dump(review),
+                "review": _model_dump(review),
                 "frontier": self._frontier_snapshot(),
                 "steering_route_focus": steering_route_focus,
             }
@@ -556,6 +604,7 @@ class ToTTreeScheduler:
             expanded_id for expanded_id in self._expanded_node_ids if expanded_id not in deleted_node_ids
         ]
 
+        self._repair_pending_expansion_after_delete(deleted_node_ids)
         self._resync_runtime_state()
         self._expansion_log.append(
             {
@@ -564,7 +613,7 @@ class ToTTreeScheduler:
                 "node_id": node_id,
                 "parent_id": parent_node.id,
                 "deleted_node_ids": deleted_node_ids,
-                "review": self._model_dump(review),
+                "review": _model_dump(review),
                 "frontier_size_after": len(self._frontier),
             }
         )
@@ -574,7 +623,7 @@ class ToTTreeScheduler:
             "node_id": node_id,
             "parent_id": parent_node.id,
             "deleted_node_ids": deleted_node_ids,
-            "review": self._model_dump(review),
+            "review": _model_dump(review),
             "frontier": self._frontier_snapshot(),
             "steering_route_focus": steering_route_focus,
         }
@@ -1867,26 +1916,10 @@ class ToTTreeScheduler:
         payload: BaseModel | dict[str, Any],
     ) -> dict[str, Any]:
         if isinstance(payload, BaseModel):
-            return self._model_dump(payload)
+            return _model_dump(payload)
         if isinstance(payload, dict):
             return dict(payload)
         raise TypeError("Deletion review adapter must return a Pydantic model or a dictionary payload.")
-
-    def _build_model(self, model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
-        unexpected = set(payload) - _model_field_names(model_type)
-        if unexpected:
-            names = ", ".join(sorted(unexpected))
-            raise ValueError(f"Unexpected fields for {model_type.__name__}: {names}")
-        try:
-            return model_type.model_validate(payload)
-        except AttributeError:
-            return model_type.parse_obj(payload)
-
-    def _model_dump(self, model: BaseModel) -> dict[str, Any]:
-        try:
-            return model.model_dump()
-        except AttributeError:
-            return model.dict()
 
     def _collect_subtree_nodes(self, node: ToTNode) -> list[ToTNode]:
         collected = [node]

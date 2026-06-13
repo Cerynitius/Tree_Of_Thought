@@ -3,7 +3,8 @@ const STORAGE_VERSION = 21;
 const DEFAULT_TIMEOUT_SECONDS = 600;
 const DEFAULT_DEPTH_PRESET = "medium";
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
-const BUSY_REFRESH_INTERVAL_MS = 150;
+const BUSY_REFRESH_INTERVAL_MS = 750;
+const STABLE_IDLE_POLLS_BEFORE_AUTO_PAUSE = 3;
 const RESULT_CANDIDATE_LIMIT = 6;
 const RESULT_ANSWER_KEYS = [
   "final_answer",
@@ -166,6 +167,7 @@ const uiState = {
   pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
   pollTimer: null,
   busyRefreshTimer: null,
+  stableIdlePollCount: 0,
   requestInFlight: false,
   revealSelection: false,
   statusMessage: "SYSTEM READY // no session attached",
@@ -920,8 +922,10 @@ function restartPolling() {
     window.clearInterval(uiState.pollTimer);
     uiState.pollTimer = null;
   }
+  uiState.stableIdlePollCount = 0;
 
   if (!uiState.pollingEnabled) {
+    clearBusyRefresh();
     return;
   }
 
@@ -952,13 +956,15 @@ function clearBusyRefresh() {
 
 function scheduleBusyRefresh() {
   clearBusyRefresh();
-  if (!uiState.sessionId) {
+  // The fast busy chain is an accelerated form of auto refresh; it must stop
+  // when the user turns auto refresh off.
+  if (!uiState.sessionId || !uiState.pollingEnabled) {
     return;
   }
 
   uiState.busyRefreshTimer = window.setTimeout(() => {
     uiState.busyRefreshTimer = null;
-    if (!uiState.sessionId || uiState.requestInFlight) {
+    if (!uiState.sessionId || uiState.requestInFlight || !uiState.pollingEnabled) {
       return;
     }
     refreshSession({ silent: true });
@@ -2567,8 +2573,14 @@ async function refreshSession(options = {}) {
       getSnapshotMetrics(previousSnapshot),
       getSnapshotMetrics(response.state)
     );
+    const runState = getRunState(response.state);
+    const hasBackgroundWork = Boolean(
+      runState.auto_run_requested
+      || (runState.in_flight_expansion && typeof runState.in_flight_expansion === "object")
+    );
     const hasStableIdleSnapshot = Boolean(
       !isSessionBusy(response.state)
+      && !hasBackgroundWork
       && !hasVisibleChange
     );
     const matchesCurrentFeedback = Boolean(
@@ -2581,9 +2593,16 @@ async function refreshSession(options = {}) {
       && (hasStableIdleSnapshot || (!hasVisibleChange && matchesCurrentFeedback))
     );
     if (options.silent && hasStableIdleSnapshot && uiState.pollingEnabled) {
-      uiState.pollingEnabled = false;
-      dom.pollingToggle.checked = false;
-      restartPolling();
+      // Pause auto refresh only after several genuinely idle polls; a session
+      // queued for an auto-run slot or between run slices must keep polling.
+      uiState.stableIdlePollCount += 1;
+      if (uiState.stableIdlePollCount >= STABLE_IDLE_POLLS_BEFORE_AUTO_PAUSE) {
+        uiState.pollingEnabled = false;
+        dom.pollingToggle.checked = false;
+        restartPolling();
+      }
+    } else {
+      uiState.stableIdlePollCount = 0;
     }
     applySessionState(
       response.session_id,
@@ -2655,6 +2674,15 @@ async function deleteSelectedNode(options = {}) {
     return;
   }
 
+  const confirmed = window.confirm(
+    shouldSteer
+      ? `Delete node ${selectedNode.id} and its subtree (after backend review), then steer from its parent?`
+      : `Delete node ${selectedNode.id} and its subtree (after backend review)?`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
   const requestLabel = shouldSteer
     ? `Deleting ${selectedNode.id}, applying steer prompt, then continuing...`
     : `Submitting delete review for ${selectedNode.id}...`;
@@ -2672,8 +2700,10 @@ async function deleteSelectedNode(options = {}) {
         },
       },
     );
-    uiState.selectedNodeId = selectedNode.parent_id;
-    uiState.revealSelection = true;
+    if (response.deleted) {
+      uiState.selectedNodeId = selectedNode.parent_id;
+      uiState.revealSelection = true;
+    }
     applySessionState(
       response.session_id,
       response.state,

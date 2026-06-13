@@ -2,12 +2,12 @@
 
 ## Purpose
 
-This file explains how to call the public skills in [skills.py](skills.py), and how to find the right skill quickly when the file grows too large to scan by eye.
+This file explains how to call the public skills exposed by [skills.py](skills.py), and how to find the right skill quickly.
 
-The repository currently uses one large symbolic backend file, so the fastest workflow is usually:
+The skill layer is split across two files: the generic SymPy physics skills are implemented in [physics_skills.py](physics_skills.py), while [skills.py](skills.py) holds the ToT layer (hard-rule checking, prompt contracts, plugin templates) and the `SKILL_REGISTRY`, re-exporting every physics skill. Always import from `skills`; use `physics_skills.py` only to read function bodies. The fastest workflow is usually:
 
 1. Use `rg` or `grep` to find the candidate skill name.
-2. Open the exact function in [skills.py](skills.py).
+2. Open the exact function in [physics_skills.py](physics_skills.py) (generic physics) or [skills.py](skills.py) (ToT-layer skills).
 3. Call it with the correct signature.
 
 There are now two redundant lookup layers:
@@ -175,7 +175,7 @@ Useful registry fields:
 - `summary`
 - `keywords`
 
-If the caller only knows the physics topic and not the exact function name, start with [skill_registry.md](skill_registry.md), then open the exact function in [skills.py](skills.py).
+If the caller only knows the physics topic and not the exact function name, start with [skill_registry.md](skill_registry.md), then open the exact function in [physics_skills.py](physics_skills.py) or [skills.py](skills.py).
 
 
 ## Hard-Rule Check Skill
@@ -224,13 +224,13 @@ If you want a topic-to-skill map before searching function bodies, read [skill_r
 ### List all public functions
 
 ```bash
-rg '^def [a-zA-Z0-9_]+\(' skills.py
+rg '^def [a-zA-Z0-9_]+\(' skills.py physics_skills.py
 ```
 
 ### Find one exact skill
 
 ```bash
-rg '^def lagrangian_equations\(' skills.py
+rg '^def lagrangian_equations\(' physics_skills.py
 rg '^def tot_hard_rule_check\(' skills.py
 ```
 

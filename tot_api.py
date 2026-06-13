@@ -104,6 +104,11 @@ class SchedulerConfig(BaseModel):
     max_frontier_size: int = Field(default=16, ge=1)
     max_children_per_expansion: int = Field(default=3, ge=1)
     max_live_children_per_batch: int = Field(default=2, ge=1)
+    max_total_expansions: Optional[int] = Field(
+        default_factory=lambda: _env_optional_int("TOT_MAX_TOTAL_EXPANSIONS", 64),
+        ge=1,
+        description="Hard ceiling on lifetime expansions per session; null (or env value <= 0) means unlimited.",
+    )
     use_local_root_proposal: bool = True
     use_local_root_evaluation: bool = True
     use_local_child_proposal: bool = True
@@ -391,16 +396,8 @@ def _default_adapter_bundle_factory(
     )
 
 
-def _serialize_state(scheduler: ToTTreeScheduler) -> dict[str, Any]:
-    return _prune_budget_fields(jsonable_encoder(scheduler.snapshot()))
-
-
 def _serialize_session_state(store: SchedulerSessionStore, session_id: str) -> dict[str, Any]:
     return _prune_budget_fields(store.snapshot(session_id))
-
-
-def _run_scheduler(scheduler: ToTTreeScheduler, additional_budget: int) -> ToTTreeScheduler:
-    return _run_scheduler_with_progress(scheduler, additional_budget)
 
 
 def _run_scheduler_with_progress(
@@ -432,6 +429,16 @@ def _run_scheduler_until_complete(
         run_state = state.get("run_state") or {}
         return isinstance(run_state.get("in_flight_expansion"), dict)
 
+    def has_in_flight_expansion(state: dict[str, Any]) -> bool:
+        run_state = state.get("run_state") or {}
+        return isinstance(run_state.get("in_flight_expansion"), dict)
+
+    def total_expansion_cap_reached(state: dict[str, Any]) -> bool:
+        cap = state.get("max_total_expansions")
+        if not isinstance(cap, int) or cap <= 0:
+            return False
+        return int(state.get("expansions_used", 0)) >= cap
+
     def execute_auto_run_slice(
         operation: Callable[[ToTTreeScheduler], dict[str, Any]],
     ) -> dict[str, Any]:
@@ -457,10 +464,16 @@ def _run_scheduler_until_complete(
         ).snapshot()
     )
     while has_remaining_scheduler_work(state):
+        cap_reached = total_expansion_cap_reached(state)
+        if cap_reached and not has_in_flight_expansion(state):
+            # The lifetime expansion ceiling is exhausted; only finish a parked
+            # batch (additional budget 0), never start a new expansion.
+            break
+        additional_budget = 0 if cap_reached else 1
         state = execute_auto_run_slice(
-            lambda scheduler: _run_scheduler_with_progress(
+            lambda scheduler, additional_budget=additional_budget: _run_scheduler_with_progress(
                 scheduler,
-                1,
+                additional_budget,
                 progress_callback=publish_progress,
             ).snapshot()
         )
@@ -511,7 +524,7 @@ def _delete_scheduler_node(
     *,
     node_id: str,
     request: DeleteNodeRequest,
-) -> tuple[ToTTreeScheduler, dict[str, Any]]:
+) -> dict[str, Any]:
     result = scheduler.delete_node(
         node_id,
         reason=request.reason,
@@ -532,7 +545,7 @@ def _delete_scheduler_node(
         )
     else:
         result["steering"] = {}
-    return scheduler, result
+    return result
 
 
 def create_app(
@@ -589,6 +602,7 @@ def create_app(
                 children_key=request.scheduler.children_key,
                 backend_adapter_factory=backend_factory,
                 deletion_review_adapter=deletion_review_adapter,
+                max_total_expansions=request.scheduler.max_total_expansions,
             )
             scheduler.auto_run_requested = bool(request.run_on_create)
             scheduler.run_status = "busy" if request.run_on_create else "idle"
@@ -621,7 +635,7 @@ def create_app(
     @app.delete("/api/tot/sessions/{session_id}/nodes/{node_id}", response_model=DeleteNodeResponse)
     def delete_node(session_id: str, node_id: str, request: DeleteNodeRequest) -> DeleteNodeResponse:
         try:
-            scheduler, result = _execute_session_or_404(
+            result = _execute_session_or_404(
                 app,
                 session_id,
                 lambda current_scheduler: _delete_scheduler_node(
@@ -643,7 +657,9 @@ def create_app(
             if request.run_after_delete and bool(result["deleted"]):
                 state = _prune_budget_fields(_run_scheduler_until_complete(app.state.session_store, session_id))
             else:
-                state = _serialize_state(scheduler)
+                # Serialize through the session store so the read happens under the
+                # session lock instead of racing a concurrent auto-run thread.
+                state = _serialize_session_state(app.state.session_store, session_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Session not found.") from exc
         except ChatBackendError as exc:

@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-from skills import direct_9b_benchmark_payload
+from benchmarks import direct_9b_benchmark_payload
 
 
 DEFAULT_API_URL = "http://localhost:1234/api/v1/chat"
@@ -260,20 +260,31 @@ def score_case(case: BenchmarkCase, model_payload: dict[str, Any]) -> dict[str, 
 
 
 def extract_scoring_answer_text(text: str) -> str:
+    """Isolate the explicit final-answer region before number matching.
+
+    Long responses are never scanned wholesale: matching any number in a wide
+    tail lets intermediate values (or tree metadata) collide with expected
+    values and inflate accuracy. Prefer text after an explicit answer marker;
+    otherwise fall back to the last few lines only.
+    """
+
     stripped = str(text).strip()
     if len(stripped) <= 1000:
         return stripped
     markers = list(
         re.finditer(
-            r"(?i)(?:final\s+answer|final\s+result|answer|result)\s*[:：]?",
+            r"(?i)(?:final\s+answer|final\s+result)\b\s*[:：=]?|(?:\banswer\b|\bresult\b)\s*[:：=]",
             stripped,
         )
     )
     if markers:
         tail = stripped[markers[-1].start() :].strip()
         if tail:
-            return tail[:1200]
-    return stripped[-1200:].strip()
+            return tail[:600]
+    final_lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+    if final_lines:
+        return "\n".join(final_lines[-3:])[:600]
+    return stripped[-300:].strip()
 
 
 def extract_numbers(text: str) -> list[float]:

@@ -3464,6 +3464,113 @@ class NodeHarnessTests(unittest.TestCase):
         self.assertIn("operator prune and steer", decision["reason"])
         self.assertEqual(calls, [])
 
+    def test_local_chat_delete_review_transport_failure_denies_instead_of_approving(self) -> None:
+        calls = []
+
+        def unavailable_requester(url: str, payload: dict[str, object], timeout: float) -> dict[str, object]:
+            calls.append({"url": url, "payload": dict(payload), "timeout": timeout})
+            raise ChatBackendTransportError("delete review model unavailable")
+
+        delete_adapter = LocalChatDeletionReviewAdapter(
+            requester=unavailable_requester,
+            allow_live_model_fallback=True,
+            prefer_local_fallback=False,
+            max_retries=0,
+        )
+
+        decision = delete_adapter.review_delete_node(
+            DeleteNodeReviewRequest(
+                requested_by="frontend",
+                reason="operator prune and steer",
+                target_node=NodeSnapshot(id="node-1"),
+                descendant_count=2,
+            )
+        )
+
+        self.assertFalse(decision["approved"])
+        self.assertEqual(decision["risk_level"], "high")
+        self.assertIn("unreachable", decision["reason"])
+        self.assertEqual(len(calls), 1)
+
+    def test_live_evaluation_transport_failure_returns_sub_threshold_placeholder(self) -> None:
+        requester = TrackingTimeoutChatRequester()
+        backend = LocalChatDualModelBackendAdapter(
+            requester=requester,
+            allow_live_model_fallback=True,
+            prefer_local_fallback=False,
+            max_retries=0,
+        )
+
+        evaluation = backend.evaluate(
+            EvaluationRequest(
+                attempt_index=0,
+                problem_context={
+                    "problem_statement": "Score one refinement child while the backend is down.",
+                    "meta_task": {
+                        "first_step": "identify governing relation",
+                        "step_ordering": [
+                            "identify governing relation",
+                            "express the target quantity in known variables",
+                        ],
+                    },
+                    "meta_task_progress": {
+                        "current_step_index": 1,
+                        "current_step": "express the target quantity in known variables",
+                        "current_step_guidance": "Stay local and revise only one relation.",
+                        "phase": "incremental_refinement",
+                        "is_terminal_step": False,
+                    },
+                },
+                current_node=NodeSnapshot(id="child-1", parent_id="root-1", thought_step="child step"),
+            )
+        )
+
+        self.assertEqual(evaluation["domain_consistency"], 0.5)
+        self.assertEqual(evaluation["variable_grounding"], 0.5)
+        self.assertEqual(evaluation["contextual_relevance"], 0.5)
+        self.assertEqual(evaluation["simplicity_hint"], 0.5)
+        self.assertIn("Live evaluation unavailable", evaluation["reason"])
+        self.assertEqual(evaluation["hard_rule_violations"], [])
+        self.assertEqual(len(requester.calls), 1)
+
+    def test_local_chat_bundle_defaults_to_strict_live_failures(self) -> None:
+        requester = TrackingTimeoutChatRequester()
+        backend_factory, delete_adapter = build_local_chat_adapter_bundle(
+            requester=requester,
+            max_retries=0,
+        )
+        backend = backend_factory({})
+
+        with self.assertRaises(ChatBackendTransportError):
+            backend.evaluate(
+                EvaluationRequest(
+                    attempt_index=0,
+                    problem_context={
+                        "problem_statement": "Strict mode must surface transport failures.",
+                        "meta_task": {
+                            "first_step": "identify governing relation",
+                            "step_ordering": ["identify governing relation"],
+                        },
+                        "meta_task_progress": {
+                            "current_step_index": 0,
+                            "current_step": "identify governing relation",
+                            "phase": "incremental_refinement",
+                            "is_terminal_step": False,
+                        },
+                    },
+                    current_node=NodeSnapshot(id="child-1", parent_id="root-1"),
+                )
+            )
+
+        with self.assertRaises(ChatBackendTransportError):
+            delete_adapter.review_delete_node(
+                DeleteNodeReviewRequest(
+                    requested_by="frontend",
+                    reason="cleanup",
+                    target_node=NodeSnapshot(id="node-1"),
+                )
+            )
+
     def test_local_chat_bundle_propagates_custom_non_terminal_evaluation_model(self) -> None:
         requester = CapturingChatRequester()
         backend_factory, _delete_adapter = build_local_chat_adapter_bundle(
@@ -5569,6 +5676,8 @@ class TreeSchedulerTests(unittest.TestCase):
         )
 
         result = scheduler.run()
+        while result["run_state"]["in_flight_expansion"] is not None:
+            result = scheduler.run()
         root = result["root"]
 
         self.assertEqual(result["expansions_used"], 2)
@@ -6162,6 +6271,170 @@ class TreeSchedulerTests(unittest.TestCase):
         self.assertEqual(root.children, [])
         self.assertEqual(response["frontier"], [])
         self.assertNotIn(child_id, scheduler._node_index)
+
+    def test_run_keeps_pending_expansion_resumable_after_child_build_failure(self) -> None:
+        class FlakyAdapterFactory:
+            def __init__(self) -> None:
+                self.calls = 0
+                # 1: prepare_problem_context, 2: root build, 3: first child, 4: second child
+                self.fail_on_call = 4
+
+            def __call__(self, problem_context: dict[str, object]) -> DeterministicContextBackendAdapter:
+                self.calls += 1
+                if self.calls == self.fail_on_call:
+                    raise ChatBackendTransportError("child build backend unavailable")
+                return DeterministicContextBackendAdapter(problem_context)
+
+        scheduler = ToTTreeScheduler(
+            root_problem_context={
+                "proposal": {"equations": ["root_eq"]},
+                "calculation": {"skill_params": {"required_equation_patterns": ["root_eq"]}},
+                "evaluation": {"score": 8.0},
+                "children": [
+                    {
+                        "proposal": {"equations": ["child_a"]},
+                        "calculation": {"skill_params": {"required_equation_patterns": ["child_a"]}},
+                        "evaluation": {"score": 8.0},
+                    },
+                    {
+                        "proposal": {"equations": ["child_b"]},
+                        "calculation": {"skill_params": {"required_equation_patterns": ["child_b"]}},
+                        "evaluation": {"score": 7.5},
+                    },
+                ],
+            },
+            expansion_budget=1,
+            max_frontier_size=2,
+            max_children_per_expansion=2,
+            max_reflections=0,
+            backend_adapter_factory=FlakyAdapterFactory(),
+        )
+
+        with self.assertRaises(ChatBackendTransportError):
+            scheduler.run()
+
+        state = scheduler.snapshot()
+        root = state["root"]
+        self.assertEqual(state["run_state"]["status"], "error")
+        in_flight = state["run_state"]["in_flight_expansion"]
+        self.assertIsNotNone(in_flight)
+        self.assertEqual(in_flight["parent_id"], root.id)
+        self.assertEqual(in_flight["built_child_count"], 1)
+        self.assertEqual(in_flight["remaining_child_count"], 1)
+        self.assertEqual(len(root.children), 1)
+        self.assertEqual(state["expanded_node_ids"], [root.id])
+
+        result = scheduler.run()
+        while result["run_state"]["in_flight_expansion"] is not None:
+            result = scheduler.run()
+
+        self.assertEqual(result["run_state"]["status"], "ready")
+        self.assertEqual(result["expansions_used"], 1)
+        ranked_children = sorted(
+            result["root"].children,
+            key=lambda child: child.known_vars["sibling_rank"],
+        )
+        self.assertEqual([child.equations for child in ranked_children], [["child_a"], ["child_b"]])
+
+    @staticmethod
+    def _parked_mid_batch_scheduler() -> ToTTreeScheduler:
+        def grandchild_context(equation: str) -> dict[str, object]:
+            return {
+                "proposal": {"equations": [equation]},
+                "calculation": {"skill_params": {"required_equation_patterns": [equation]}},
+                "evaluation": {"score": 8.0},
+            }
+
+        return ToTTreeScheduler(
+            root_problem_context={
+                "proposal": {"equations": ["root_eq"]},
+                "calculation": {"skill_params": {"required_equation_patterns": ["root_eq"]}},
+                "evaluation": {"score": 8.0},
+                "children": [
+                    {
+                        "proposal": {"equations": ["child_eq"]},
+                        "calculation": {"skill_params": {"required_equation_patterns": ["child_eq"]}},
+                        "evaluation": {"score": 8.0},
+                        "children": [
+                            grandchild_context("grand_a"),
+                            grandchild_context("grand_b"),
+                            grandchild_context("grand_c"),
+                        ],
+                    }
+                ],
+            },
+            expansion_budget=8,
+            max_frontier_size=4,
+            max_children_per_expansion=3,
+            max_live_children_per_batch=1,
+            max_reflections=0,
+        )
+
+    def test_delete_node_clears_pending_expansion_for_deleted_parent(self) -> None:
+        scheduler = self._parked_mid_batch_scheduler()
+
+        state = scheduler.run()
+        root = state["root"]
+        in_flight = state["run_state"]["in_flight_expansion"]
+        child_node = root.children[0]
+        self.assertIsNotNone(in_flight)
+        self.assertEqual(in_flight["parent_id"], child_node.id)
+        self.assertEqual(in_flight["remaining_child_count"], 2)
+
+        response = scheduler.delete_node(
+            child_node.id,
+            reason="operator removed the parked branch",
+            review_adapter=ApproveDeleteReviewAdapter(),
+        )
+
+        self.assertTrue(response["deleted"])
+        self.assertIn(child_node.id, response["deleted_node_ids"])
+        state = scheduler.snapshot()
+        self.assertIsNone(state["run_state"]["in_flight_expansion"])
+
+        result = scheduler.run()
+        while result["run_state"]["in_flight_expansion"] is not None:
+            result = scheduler.run()
+
+        self.assertEqual(result["run_state"]["status"], "ready")
+        self.assertEqual(result["root"].children, [])
+        self.assertNotIn(child_node.id, scheduler._node_index)
+
+    def test_delete_node_prunes_deleted_children_from_pending_expansion(self) -> None:
+        scheduler = self._parked_mid_batch_scheduler()
+
+        state = scheduler.run()
+        root = state["root"]
+        child_node = root.children[0]
+        built_grandchild = child_node.children[0]
+        self.assertEqual(built_grandchild.equations, ["grand_a"])
+
+        response = scheduler.delete_node(
+            built_grandchild.id,
+            reason="operator removed one parked grandchild",
+            review_adapter=ApproveDeleteReviewAdapter(),
+        )
+
+        self.assertTrue(response["deleted"])
+        state = scheduler.snapshot()
+        in_flight = state["run_state"]["in_flight_expansion"]
+        self.assertIsNotNone(in_flight)
+        self.assertEqual(in_flight["parent_id"], child_node.id)
+        self.assertEqual(in_flight["built_child_count"], 0)
+        self.assertEqual(in_flight["remaining_child_count"], 2)
+
+        result = scheduler.run()
+        while result["run_state"]["in_flight_expansion"] is not None:
+            result = scheduler.run()
+
+        self.assertEqual(result["run_state"]["status"], "ready")
+        surviving_equations = sorted(
+            equation
+            for grandchild in child_node.children
+            for equation in grandchild.equations
+        )
+        self.assertEqual(surviving_equations, ["grand_b", "grand_c"])
+        self.assertNotIn(built_grandchild.id, scheduler._node_index)
 
 
 if __name__ == "__main__":
