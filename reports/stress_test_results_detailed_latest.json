@@ -1,0 +1,5548 @@
+{
+  "generated_at": "2026-05-28 11:36:12",
+  "base_url": "http://127.0.0.1:8000",
+  "runs_per_preset": 5,
+  "presets": {
+    "low": {
+      "depth_preset": "low",
+      "max_tree_depth": 5,
+      "max_frontier_size": 6,
+      "max_children_per_expansion": 2,
+      "max_frontier_per_diversity_key": 1
+    },
+    "medium": {
+      "depth_preset": "medium",
+      "max_tree_depth": 8,
+      "max_frontier_size": 16,
+      "max_children_per_expansion": 6,
+      "max_frontier_per_diversity_key": 4
+    },
+    "high": {
+      "depth_preset": "high",
+      "max_tree_depth": 12,
+      "max_frontier_size": 24,
+      "max_children_per_expansion": 8,
+      "max_frontier_per_diversity_key": 6
+    }
+  },
+  "scenarios": {
+    "deep_chain_d20": {
+      "kind": "chain",
+      "depth": 20
+    },
+    "duplicate_fanout_d7_b3": {
+      "kind": "duplicate_fanout",
+      "depth": 7,
+      "branching": 3
+    },
+    "unique_fanout_d7_b3": {
+      "kind": "unique_fanout",
+      "depth": 7,
+      "branching": 3
+    }
+  },
+  "summary": {
+    "deep_chain_d20": {
+      "low": {
+        "runs": 5,
+        "elapsed_avg_sec": 0.019,
+        "elapsed_p95_sec": 0.019,
+        "total_nodes_avg": 6,
+        "total_nodes_min": 6,
+        "total_nodes_max": 6,
+        "max_depth_set": [
+          5
+        ],
+        "merged_ratio_avg": 0.0,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.0,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 0.0
+      },
+      "medium": {
+        "runs": 5,
+        "elapsed_avg_sec": 0.026,
+        "elapsed_p95_sec": 0.027,
+        "total_nodes_avg": 8,
+        "total_nodes_min": 8,
+        "total_nodes_max": 8,
+        "max_depth_set": [
+          7
+        ],
+        "merged_ratio_avg": 0.0,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.0,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 9.03
+      },
+      "high": {
+        "runs": 5,
+        "elapsed_avg_sec": 0.035,
+        "elapsed_p95_sec": 0.035,
+        "total_nodes_avg": 10,
+        "total_nodes_min": 10,
+        "total_nodes_max": 10,
+        "max_depth_set": [
+          9
+        ],
+        "merged_ratio_avg": 0.0,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.0,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 9.0
+      }
+    },
+    "duplicate_fanout_d7_b3": {
+      "low": {
+        "runs": 5,
+        "elapsed_avg_sec": 0.701,
+        "elapsed_p95_sec": 0.697,
+        "total_nodes_avg": 40,
+        "total_nodes_min": 25,
+        "total_nodes_max": 55,
+        "max_depth_set": [
+          5
+        ],
+        "merged_ratio_avg": 0.4245,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.4245,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 8.684
+      },
+      "medium": {
+        "runs": 5,
+        "elapsed_avg_sec": 3.955,
+        "elapsed_p95_sec": 6.38,
+        "total_nodes_avg": 125.8,
+        "total_nodes_min": 64,
+        "total_nodes_max": 187,
+        "max_depth_set": [
+          7
+        ],
+        "merged_ratio_avg": 0.3725,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.3725,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 8.612
+      },
+      "high": {
+        "runs": 5,
+        "elapsed_avg_sec": 4.848,
+        "elapsed_p95_sec": 9.286,
+        "total_nodes_avg": 136.6,
+        "total_nodes_min": 64,
+        "total_nodes_max": 214,
+        "max_depth_set": [
+          7
+        ],
+        "merged_ratio_avg": 0.6449,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.6449,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 6.884
+      }
+    },
+    "unique_fanout_d7_b3": {
+      "low": {
+        "runs": 5,
+        "elapsed_avg_sec": 0.703,
+        "elapsed_p95_sec": 0.713,
+        "total_nodes_avg": 38.8,
+        "total_nodes_min": 25,
+        "total_nodes_max": 49,
+        "max_depth_set": [
+          5
+        ],
+        "merged_ratio_avg": 0.4325,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.4325,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 8.686
+      },
+      "medium": {
+        "runs": 5,
+        "elapsed_avg_sec": 3.229,
+        "elapsed_p95_sec": 3.356,
+        "total_nodes_avg": 130.6,
+        "total_nodes_min": 64,
+        "total_nodes_max": 202,
+        "max_depth_set": [
+          7
+        ],
+        "merged_ratio_avg": 0.3721,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.3721,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 8.604
+      },
+      "high": {
+        "runs": 5,
+        "elapsed_avg_sec": 4.471,
+        "elapsed_p95_sec": 5.972,
+        "total_nodes_avg": 125.2,
+        "total_nodes_min": 64,
+        "total_nodes_max": 184,
+        "max_depth_set": [
+          7
+        ],
+        "merged_ratio_avg": 0.6438,
+        "semantic_merge_ratio_avg": 0.0,
+        "exact_merge_ratio_avg": 0.6438,
+        "frontier_final_all_zero": true,
+        "best_leaf_score_avg": 6.9
+      }
+    }
+  },
+  "runs": [
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "low",
+      "run_index": 1,
+      "session_id": "ecb1acd5ddf24ea28ddfe4b508059fa4",
+      "elapsed_sec": 0.019,
+      "total_nodes": 6,
+      "max_depth": 5,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 5,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 6
+      },
+      "route_family_counts": {
+        "chain": 6
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 11,
+      "expansion_event_counts": {
+        "(none)": 5,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 0.0,
+      "best_leaf_path": [
+        {
+          "id": "0f31648b",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s137_L0"
+          ],
+          "thought_step": "Chain step seed=137 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "b9195a81",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "401defc4",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s137_L2"
+          ],
+          "thought_step": "Chain step seed=137 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "c8ff8624",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "c2c7efc5",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s137_L4"
+          ],
+          "thought_step": "Chain step seed=137 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "ba186418",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 0.0,
+        "max": 0.0,
+        "avg": 0.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "low",
+      "run_index": 2,
+      "session_id": "143cf0376aa345c8886f938e428ed175",
+      "elapsed_sec": 0.02,
+      "total_nodes": 6,
+      "max_depth": 5,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 5,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 6
+      },
+      "route_family_counts": {
+        "chain": 6
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 11,
+      "expansion_event_counts": {
+        "(none)": 5,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 0.0,
+      "best_leaf_path": [
+        {
+          "id": "dd79ce5d",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s174_L0"
+          ],
+          "thought_step": "Chain step seed=174 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "c712782e",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "297da2e1",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s174_L2"
+          ],
+          "thought_step": "Chain step seed=174 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "df9336a4",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "7462c743",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s174_L4"
+          ],
+          "thought_step": "Chain step seed=174 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "3b014d5d",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 0.0,
+        "max": 0.0,
+        "avg": 0.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "low",
+      "run_index": 3,
+      "session_id": "44b168cc004742be8e747adcf7b616e4",
+      "elapsed_sec": 0.019,
+      "total_nodes": 6,
+      "max_depth": 5,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 5,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 6
+      },
+      "route_family_counts": {
+        "chain": 6
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 11,
+      "expansion_event_counts": {
+        "(none)": 5,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 0.0,
+      "best_leaf_path": [
+        {
+          "id": "0da0fa91",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s211_L0"
+          ],
+          "thought_step": "Chain step seed=211 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "6f033e41",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "91012985",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s211_L2"
+          ],
+          "thought_step": "Chain step seed=211 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "2793027c",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "93ace045",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s211_L4"
+          ],
+          "thought_step": "Chain step seed=211 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "fac7f371",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 0.0,
+        "max": 0.0,
+        "avg": 0.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "low",
+      "run_index": 4,
+      "session_id": "057c41729ed44909944d70f6f243e1ce",
+      "elapsed_sec": 0.018,
+      "total_nodes": 6,
+      "max_depth": 5,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 5,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 6
+      },
+      "route_family_counts": {
+        "chain": 6
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 11,
+      "expansion_event_counts": {
+        "(none)": 5,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 0.0,
+      "best_leaf_path": [
+        {
+          "id": "27b67e61",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s248_L0"
+          ],
+          "thought_step": "Chain step seed=248 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "27247dc0",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "1995472c",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s248_L2"
+          ],
+          "thought_step": "Chain step seed=248 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "6d1a1f0d",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "329641d9",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s248_L4"
+          ],
+          "thought_step": "Chain step seed=248 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "e4eda7ad",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 0.0,
+        "max": 0.0,
+        "avg": 0.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "low",
+      "run_index": 5,
+      "session_id": "cc49fc9af6bf42e1b3c664fa410403bb",
+      "elapsed_sec": 0.018,
+      "total_nodes": 6,
+      "max_depth": 5,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 5,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 6
+      },
+      "route_family_counts": {
+        "chain": 6
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 11,
+      "expansion_event_counts": {
+        "(none)": 5,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 0.0,
+      "best_leaf_path": [
+        {
+          "id": "ef3e5719",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s285_L0"
+          ],
+          "thought_step": "Chain step seed=285 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "85f4c0d0",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "1d4951c6",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s285_L2"
+          ],
+          "thought_step": "Chain step seed=285 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "6250998c",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "1ecf092b",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s285_L4"
+          ],
+          "thought_step": "Chain step seed=285 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "c2fcf9ce",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 0.0,
+        "max": 0.0,
+        "avg": 0.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "medium",
+      "run_index": 1,
+      "session_id": "006c21fb1247474a95b124d9bc77b8ca",
+      "elapsed_sec": 0.027,
+      "total_nodes": 8,
+      "max_depth": 7,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 7,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 7,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 8
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 13,
+      "expansion_event_counts": {
+        "(none)": 7,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 9.03,
+      "best_leaf_path": [
+        {
+          "id": "800d05df",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s137_L0"
+          ],
+          "thought_step": "Chain step seed=137 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "052cd8d7",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "ed8cb91c",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s137_L2"
+          ],
+          "thought_step": "Chain step seed=137 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "78559cf0",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "e18463d3",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s137_L4"
+          ],
+          "thought_step": "Chain step seed=137 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "940e21c1",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "7f0851a6",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s137_L6"
+          ],
+          "thought_step": "Chain step seed=137 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "0b00ac89",
+          "depth": 7,
+          "equations": [
+            "chain_eq_s137_L7"
+          ],
+          "thought_step": "Chain step seed=137 level=7",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.03
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.03,
+        "max": 9.03,
+        "avg": 9.03
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "medium",
+      "run_index": 2,
+      "session_id": "923deb3fad8944a6a99d04baa352f88e",
+      "elapsed_sec": 0.027,
+      "total_nodes": 8,
+      "max_depth": 7,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 7,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 7,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 8
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 13,
+      "expansion_event_counts": {
+        "(none)": 7,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 9.03,
+      "best_leaf_path": [
+        {
+          "id": "833d9c7b",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s174_L0"
+          ],
+          "thought_step": "Chain step seed=174 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "3d33138f",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "396a499c",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s174_L2"
+          ],
+          "thought_step": "Chain step seed=174 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "c8d4d039",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "62230aac",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s174_L4"
+          ],
+          "thought_step": "Chain step seed=174 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "ae5757c9",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "90fcbe5d",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s174_L6"
+          ],
+          "thought_step": "Chain step seed=174 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "3f38c3a4",
+          "depth": 7,
+          "equations": [
+            "chain_eq_s174_L7"
+          ],
+          "thought_step": "Chain step seed=174 level=7",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.03
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.03,
+        "max": 9.03,
+        "avg": 9.03
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "medium",
+      "run_index": 3,
+      "session_id": "1f56c4929a544fbd9cb4d28bc420d209",
+      "elapsed_sec": 0.026,
+      "total_nodes": 8,
+      "max_depth": 7,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 7,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 7,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 8
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 13,
+      "expansion_event_counts": {
+        "(none)": 7,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 9.03,
+      "best_leaf_path": [
+        {
+          "id": "f3a9bbe4",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s211_L0"
+          ],
+          "thought_step": "Chain step seed=211 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "af796274",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "82cefae1",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s211_L2"
+          ],
+          "thought_step": "Chain step seed=211 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "58753ab0",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "e2775607",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s211_L4"
+          ],
+          "thought_step": "Chain step seed=211 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "2d8735d2",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "3a31dff4",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s211_L6"
+          ],
+          "thought_step": "Chain step seed=211 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "1e4d5363",
+          "depth": 7,
+          "equations": [
+            "chain_eq_s211_L7"
+          ],
+          "thought_step": "Chain step seed=211 level=7",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.03
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.03,
+        "max": 9.03,
+        "avg": 9.03
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "medium",
+      "run_index": 4,
+      "session_id": "71cfe31296e34a499cddbb6fd93c17fd",
+      "elapsed_sec": 0.026,
+      "total_nodes": 8,
+      "max_depth": 7,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 7,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 7,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 8
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 13,
+      "expansion_event_counts": {
+        "(none)": 7,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 9.03,
+      "best_leaf_path": [
+        {
+          "id": "74b39fbe",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s248_L0"
+          ],
+          "thought_step": "Chain step seed=248 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "e74da607",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "ad6761b3",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s248_L2"
+          ],
+          "thought_step": "Chain step seed=248 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "ddb7f694",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "cd06ad96",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s248_L4"
+          ],
+          "thought_step": "Chain step seed=248 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "02021d0f",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "4d37f546",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s248_L6"
+          ],
+          "thought_step": "Chain step seed=248 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "737a06df",
+          "depth": 7,
+          "equations": [
+            "chain_eq_s248_L7"
+          ],
+          "thought_step": "Chain step seed=248 level=7",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.03
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.03,
+        "max": 9.03,
+        "avg": 9.03
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "medium",
+      "run_index": 5,
+      "session_id": "44c101703b354880841e2257c575ff51",
+      "elapsed_sec": 0.026,
+      "total_nodes": 8,
+      "max_depth": 7,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 7,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 7,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 8
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 13,
+      "expansion_event_counts": {
+        "(none)": 7,
+        "sent-to-reflection": 6
+      },
+      "best_leaf_score": 9.03,
+      "best_leaf_path": [
+        {
+          "id": "7dac5a5a",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s285_L0"
+          ],
+          "thought_step": "Chain step seed=285 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "5b58bb89",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "3e063d4b",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s285_L2"
+          ],
+          "thought_step": "Chain step seed=285 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "11cd9b73",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "a4db9a01",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s285_L4"
+          ],
+          "thought_step": "Chain step seed=285 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "6f700895",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "1fa9431e",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s285_L6"
+          ],
+          "thought_step": "Chain step seed=285 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "dfaee553",
+          "depth": 7,
+          "equations": [
+            "chain_eq_s285_L7"
+          ],
+          "thought_step": "Chain step seed=285 level=7",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.03
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.03,
+        "max": 9.03,
+        "avg": 9.03
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "high",
+      "run_index": 1,
+      "session_id": "392180ab01334526ad33578dfa1d4a25",
+      "elapsed_sec": 0.035,
+      "total_nodes": 10,
+      "max_depth": 9,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 9,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 9,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 17,
+      "expansion_event_counts": {
+        "(none)": 9,
+        "sent-to-reflection": 8
+      },
+      "best_leaf_score": 9.0,
+      "best_leaf_path": [
+        {
+          "id": "8742d672",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s137_L0"
+          ],
+          "thought_step": "Chain step seed=137 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "a12895b9",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "9b796f15",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s137_L2"
+          ],
+          "thought_step": "Chain step seed=137 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "bb6d7e1b",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "ac00a19b",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s137_L4"
+          ],
+          "thought_step": "Chain step seed=137 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "c27ebc2c",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "a029d7e3",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s137_L6"
+          ],
+          "thought_step": "Chain step seed=137 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "04e1fb71",
+          "depth": 7,
+          "equations": [
+            "local_step_7 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: verify consistency against limits and constraints. Add or correct exactly one quantity, relation, approximation, or correction term, and leave a",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "158ac0ab",
+          "depth": 8,
+          "equations": [
+            "chain_eq_s137_L8"
+          ],
+          "thought_step": "Chain step seed=137 level=8",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.01
+        },
+        {
+          "id": "4686ae0b",
+          "depth": 9,
+          "equations": [
+            "chain_eq_s137_L9"
+          ],
+          "thought_step": "Chain step seed=137 level=9",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.0,
+        "max": 9.0,
+        "avg": 9.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "high",
+      "run_index": 2,
+      "session_id": "cce2901695db49deb11e883f28241de5",
+      "elapsed_sec": 0.035,
+      "total_nodes": 10,
+      "max_depth": 9,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 9,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 9,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 17,
+      "expansion_event_counts": {
+        "(none)": 9,
+        "sent-to-reflection": 8
+      },
+      "best_leaf_score": 9.0,
+      "best_leaf_path": [
+        {
+          "id": "48a0ed45",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s174_L0"
+          ],
+          "thought_step": "Chain step seed=174 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "3c9f8df3",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "1ae4e55f",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s174_L2"
+          ],
+          "thought_step": "Chain step seed=174 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "941f374d",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "ddeb8610",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s174_L4"
+          ],
+          "thought_step": "Chain step seed=174 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "8d6e0c94",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "ab78cae0",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s174_L6"
+          ],
+          "thought_step": "Chain step seed=174 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "f6e5074a",
+          "depth": 7,
+          "equations": [
+            "local_step_7 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: verify consistency against limits and constraints. Add or correct exactly one quantity, relation, approximation, or correction term, and leave a",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "36b1fa73",
+          "depth": 8,
+          "equations": [
+            "chain_eq_s174_L8"
+          ],
+          "thought_step": "Chain step seed=174 level=8",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.01
+        },
+        {
+          "id": "6b76e1f2",
+          "depth": 9,
+          "equations": [
+            "chain_eq_s174_L9"
+          ],
+          "thought_step": "Chain step seed=174 level=9",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.0,
+        "max": 9.0,
+        "avg": 9.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "high",
+      "run_index": 3,
+      "session_id": "3cb2249fbe6241bb818a81f8b8c8734e",
+      "elapsed_sec": 0.034,
+      "total_nodes": 10,
+      "max_depth": 9,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 9,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 9,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 17,
+      "expansion_event_counts": {
+        "(none)": 9,
+        "sent-to-reflection": 8
+      },
+      "best_leaf_score": 9.0,
+      "best_leaf_path": [
+        {
+          "id": "d994ec59",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s211_L0"
+          ],
+          "thought_step": "Chain step seed=211 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "ecdc3ca3",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "27e4f2b0",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s211_L2"
+          ],
+          "thought_step": "Chain step seed=211 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "f491a43f",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "579b476e",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s211_L4"
+          ],
+          "thought_step": "Chain step seed=211 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "99a5965a",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "7b75cd6d",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s211_L6"
+          ],
+          "thought_step": "Chain step seed=211 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "b1943434",
+          "depth": 7,
+          "equations": [
+            "local_step_7 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: verify consistency against limits and constraints. Add or correct exactly one quantity, relation, approximation, or correction term, and leave a",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "260b82d4",
+          "depth": 8,
+          "equations": [
+            "chain_eq_s211_L8"
+          ],
+          "thought_step": "Chain step seed=211 level=8",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.01
+        },
+        {
+          "id": "7f95aaaa",
+          "depth": 9,
+          "equations": [
+            "chain_eq_s211_L9"
+          ],
+          "thought_step": "Chain step seed=211 level=9",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.0,
+        "max": 9.0,
+        "avg": 9.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "high",
+      "run_index": 4,
+      "session_id": "bb490f1df6ea4896a7f225341870e242",
+      "elapsed_sec": 0.035,
+      "total_nodes": 10,
+      "max_depth": 9,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 9,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 9,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 17,
+      "expansion_event_counts": {
+        "(none)": 9,
+        "sent-to-reflection": 8
+      },
+      "best_leaf_score": 9.0,
+      "best_leaf_path": [
+        {
+          "id": "145e239e",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s248_L0"
+          ],
+          "thought_step": "Chain step seed=248 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "f316bc0d",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "f409cfdc",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s248_L2"
+          ],
+          "thought_step": "Chain step seed=248 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "71b543e1",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "2448b493",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s248_L4"
+          ],
+          "thought_step": "Chain step seed=248 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "94faa4fb",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "93a56a5a",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s248_L6"
+          ],
+          "thought_step": "Chain step seed=248 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "7ce2df53",
+          "depth": 7,
+          "equations": [
+            "local_step_7 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: verify consistency against limits and constraints. Add or correct exactly one quantity, relation, approximation, or correction term, and leave a",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "32240c81",
+          "depth": 8,
+          "equations": [
+            "chain_eq_s248_L8"
+          ],
+          "thought_step": "Chain step seed=248 level=8",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.01
+        },
+        {
+          "id": "5ed6d725",
+          "depth": 9,
+          "equations": [
+            "chain_eq_s248_L9"
+          ],
+          "thought_step": "Chain step seed=248 level=9",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.0,
+        "max": 9.0,
+        "avg": 9.0
+      }
+    },
+    {
+      "scenario": "deep_chain_d20",
+      "preset": "high",
+      "run_index": 5,
+      "session_id": "0a359943b4a34d4abb31b2a1dd61358e",
+      "elapsed_sec": 0.035,
+      "total_nodes": 10,
+      "max_depth": 9,
+      "leaf_nodes": 1,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 9,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 9,
+        "SOLVED": 1
+      },
+      "route_family_counts": {
+        "chain": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1
+      },
+      "merged_ratio": 0.0,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.0,
+      "expansion_log_entries": 17,
+      "expansion_event_counts": {
+        "(none)": 9,
+        "sent-to-reflection": 8
+      },
+      "best_leaf_score": 9.0,
+      "best_leaf_path": [
+        {
+          "id": "2cbab8cd",
+          "depth": 0,
+          "equations": [
+            "chain_eq_s285_L0"
+          ],
+          "thought_step": "Chain step seed=285 level=0",
+          "scheduler_action": "root",
+          "route_family": "chain",
+          "score": 9.12
+        },
+        {
+          "id": "56316426",
+          "depth": 1,
+          "equations": [
+            "local_step_1 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: choose one active correction or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "9bee150d",
+          "depth": 2,
+          "equations": [
+            "chain_eq_s285_L2"
+          ],
+          "thought_step": "Chain step seed=285 level=2",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.09
+        },
+        {
+          "id": "fe23d83a",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "2d7fc8ba",
+          "depth": 4,
+          "equations": [
+            "chain_eq_s285_L4"
+          ],
+          "thought_step": "Chain step seed=285 level=4",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.06
+        },
+        {
+          "id": "fc29dbd5",
+          "depth": 5,
+          "equations": [
+            "local_step_5 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: reduce to one solvable local relation. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other pen",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "3cdf7424",
+          "depth": 6,
+          "equations": [
+            "chain_eq_s285_L6"
+          ],
+          "thought_step": "Chain step seed=285 level=6",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.04
+        },
+        {
+          "id": "fa423625",
+          "depth": 7,
+          "equations": [
+            "local_step_7 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: verify consistency against limits and constraints. Add or correct exactly one quantity, relation, approximation, or correction term, and leave a",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 0.0
+        },
+        {
+          "id": "b1cc4f4a",
+          "depth": 8,
+          "equations": [
+            "chain_eq_s285_L8"
+          ],
+          "thought_step": "Chain step seed=285 level=8",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.01
+        },
+        {
+          "id": "eef03698",
+          "depth": 9,
+          "equations": [
+            "chain_eq_s285_L9"
+          ],
+          "thought_step": "Chain step seed=285 level=9",
+          "scheduler_action": "expanded",
+          "route_family": "chain",
+          "score": 9.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 1,
+        "min": 9.0,
+        "max": 9.0,
+        "avg": 9.0
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 1,
+      "session_id": "92f2e1808bd640de96f6dd92651179ca",
+      "elapsed_sec": 0.693,
+      "total_nodes": 40,
+      "max_depth": 5,
+      "leaf_nodes": 27,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 22,
+        "merged-duplicate": 17,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 40
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "energy": 27,
+        "momentum": 7
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 18,
+        "4": 3,
+        "5": 6
+      },
+      "merged_ratio": 0.425,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.425,
+      "expansion_log_entries": 49,
+      "expansion_event_counts": {
+        "(none)": 13,
+        "sent-to-reflection": 36
+      },
+      "best_leaf_score": 8.7,
+      "best_leaf_path": [
+        {
+          "id": "28e6f9ba",
+          "depth": 0,
+          "equations": [
+            "eq_momentum_dup_s137_L0"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=137 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.83
+        },
+        {
+          "id": "1d4cbaa4",
+          "depth": 1,
+          "equations": [
+            "eq_closure_stability_L1_B0"
+          ],
+          "thought_step": "Refine closure via stability seed=154 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.76
+        },
+        {
+          "id": "fd408d14",
+          "depth": 2,
+          "equations": [
+            "eq_energy_consistency_L2_B2"
+          ],
+          "thought_step": "Refine energy via consistency seed=238 level=2 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.7
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 27,
+        "min": 0.0,
+        "max": 8.7,
+        "avg": 3.1985
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 2,
+      "session_id": "54192e64dc3b4c6a9bbde96e5d035b64",
+      "elapsed_sec": 0.615,
+      "total_nodes": 25,
+      "max_depth": 5,
+      "leaf_nodes": 17,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 11,
+        "merged-duplicate": 13,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 25
+      },
+      "route_family_counts": {
+        "closure": 12,
+        "constraint": 9,
+        "energy": 4
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 3,
+        "4": 6,
+        "5": 3
+      },
+      "merged_ratio": 0.52,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.52,
+      "expansion_log_entries": 38,
+      "expansion_event_counts": {
+        "(none)": 8,
+        "sent-to-reflection": 30
+      },
+      "best_leaf_score": 8.66,
+      "best_leaf_path": [
+        {
+          "id": "d8750bfd",
+          "depth": 0,
+          "equations": [
+            "eq_energy_dup_s174_L0"
+          ],
+          "thought_step": "Refine energy via consistency seed=174 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "energy",
+          "score": 8.77
+        },
+        {
+          "id": "f1019b68",
+          "depth": 1,
+          "equations": [
+            "eq_constraint_linear_L1_B0"
+          ],
+          "thought_step": "Refine constraint via linear seed=191 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.79
+        },
+        {
+          "id": "87d2cfbe",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "6b552de9",
+          "depth": 3,
+          "equations": [
+            "eq_closure_stability_L3_B0"
+          ],
+          "thought_step": "Refine closure via stability seed=336 level=3 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.66
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 17,
+        "min": 0.0,
+        "max": 8.66,
+        "avg": 2.0282
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 3,
+      "session_id": "3cc6f626d56944e38c18197a71b9fd30",
+      "elapsed_sec": 0.805,
+      "total_nodes": 55,
+      "max_depth": 5,
+      "leaf_nodes": 37,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 36,
+        "merged-duplicate": 18,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 55
+      },
+      "route_family_counts": {
+        "closure": 19,
+        "constraint": 24,
+        "momentum": 12
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 15,
+        "4": 9,
+        "5": 18
+      },
+      "merged_ratio": 0.3273,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3273,
+      "expansion_log_entries": 52,
+      "expansion_event_counts": {
+        "(none)": 18,
+        "sent-to-reflection": 34
+      },
+      "best_leaf_score": 8.66,
+      "best_leaf_path": [
+        {
+          "id": "e6e1cfa1",
+          "depth": 0,
+          "equations": [
+            "eq_closure_dup_s211_L0"
+          ],
+          "thought_step": "Refine closure via stability seed=211 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "closure",
+          "score": 8.8
+        },
+        {
+          "id": "51c89af3",
+          "depth": 1,
+          "equations": [
+            "eq_momentum_quadratic_L1_B1"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=259 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.79
+        },
+        {
+          "id": "5887a37e",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "2fb89d0a",
+          "depth": 3,
+          "equations": [
+            "eq_constraint_linear_L3_B1"
+          ],
+          "thought_step": "Refine constraint via linear seed=404 level=3 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.66
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 37,
+        "min": 0.0,
+        "max": 8.66,
+        "avg": 5.12
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 4,
+      "session_id": "e59248aaf7854aff98fbf5d459696d75",
+      "elapsed_sec": 0.697,
+      "total_nodes": 40,
+      "max_depth": 5,
+      "leaf_nodes": 27,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 22,
+        "merged-duplicate": 17,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 40
+      },
+      "route_family_counts": {
+        "constraint": 7,
+        "energy": 6,
+        "momentum": 27
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 18,
+        "4": 3,
+        "5": 6
+      },
+      "merged_ratio": 0.425,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.425,
+      "expansion_log_entries": 49,
+      "expansion_event_counts": {
+        "(none)": 13,
+        "sent-to-reflection": 36
+      },
+      "best_leaf_score": 8.7,
+      "best_leaf_path": [
+        {
+          "id": "c5c816f7",
+          "depth": 0,
+          "equations": [
+            "eq_constraint_dup_s248_L0"
+          ],
+          "thought_step": "Refine constraint via linear seed=248 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "constraint",
+          "score": 8.83
+        },
+        {
+          "id": "169e2e6e",
+          "depth": 1,
+          "equations": [
+            "eq_energy_consistency_L1_B0"
+          ],
+          "thought_step": "Refine energy via consistency seed=265 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.76
+        },
+        {
+          "id": "051de353",
+          "depth": 2,
+          "equations": [
+            "eq_momentum_quadratic_L2_B2"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=349 level=2 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.7
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 27,
+        "min": 0.0,
+        "max": 8.7,
+        "avg": 3.1985
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 5,
+      "session_id": "c3444f7419bf411ebded167b617fa2df",
+      "elapsed_sec": 0.696,
+      "total_nodes": 40,
+      "max_depth": 5,
+      "leaf_nodes": 27,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 22,
+        "merged-duplicate": 17,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 40
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "energy": 27,
+        "momentum": 7
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 18,
+        "4": 3,
+        "5": 6
+      },
+      "merged_ratio": 0.425,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.425,
+      "expansion_log_entries": 51,
+      "expansion_event_counts": {
+        "(none)": 13,
+        "sent-to-reflection": 38
+      },
+      "best_leaf_score": 8.7,
+      "best_leaf_path": [
+        {
+          "id": "213fc143",
+          "depth": 0,
+          "equations": [
+            "eq_momentum_dup_s285_L0"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=285 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.77
+        },
+        {
+          "id": "4d4aa88d",
+          "depth": 1,
+          "equations": [
+            "eq_closure_stability_L1_B1"
+          ],
+          "thought_step": "Refine closure via stability seed=333 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.76
+        },
+        {
+          "id": "45f6829d",
+          "depth": 2,
+          "equations": [
+            "eq_energy_dup_s372_L2"
+          ],
+          "thought_step": "Refine energy via consistency seed=372 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.7
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 27,
+        "min": 0.0,
+        "max": 8.7,
+        "avg": 2.8763
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 1,
+      "session_id": "8c060bda25274f3d943931d195ea230e",
+      "elapsed_sec": 6.38,
+      "total_nodes": 121,
+      "max_depth": 7,
+      "leaf_nodes": 81,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 81,
+        "merged-duplicate": 39,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 79,
+        "SOLVED": 42
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "constraint": 69,
+        "energy": 36,
+        "momentum": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 42
+      },
+      "merged_ratio": 0.3223,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3223,
+      "expansion_log_entries": 110,
+      "expansion_event_counts": {
+        "(none)": 40,
+        "sent-to-reflection": 70
+      },
+      "best_leaf_score": 8.6,
+      "best_leaf_path": [
+        {
+          "id": "4ef1ae02",
+          "depth": 0,
+          "equations": [
+            "eq_momentum_dup_s137_L0"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=137 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.83
+        },
+        {
+          "id": "1b96d5fd",
+          "depth": 1,
+          "equations": [
+            "eq_closure_stability_L1_B2"
+          ],
+          "thought_step": "Refine closure via stability seed=216 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "ee813600",
+          "depth": 2,
+          "equations": [
+            "eq_energy_dup_s272_L2"
+          ],
+          "thought_step": "Refine energy via consistency seed=272 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.75
+        },
+        {
+          "id": "525db259",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "0171f46c",
+          "depth": 4,
+          "equations": [
+            "eq_closure_dup_s410_L4"
+          ],
+          "thought_step": "Refine closure via stability seed=410 level=4 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.62
+        },
+        {
+          "id": "6f05d2d6",
+          "depth": 5,
+          "equations": [
+            "eq_momentum_quadratic_L5_B1"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=495 level=5 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.61
+        },
+        {
+          "id": "0efe2b8f",
+          "depth": 6,
+          "equations": [
+            "eq_constraint_dup_s554_L6"
+          ],
+          "thought_step": "Refine constraint via linear seed=554 level=6 branch=0",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "constraint",
+          "score": 8.6
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 81,
+        "min": 0.0,
+        "max": 8.6,
+        "avg": 5.0595
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 2,
+      "session_id": "90e5e78ef2f44eb281866b431abf10e0",
+      "elapsed_sec": 1.045,
+      "total_nodes": 64,
+      "max_depth": 7,
+      "leaf_nodes": 43,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 47,
+        "merged-duplicate": 16,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 37,
+        "SOLVED": 27
+      },
+      "route_family_counts": {
+        "closure": 12,
+        "constraint": 12,
+        "energy": 4,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 3,
+        "4": 9,
+        "5": 3,
+        "6": 9,
+        "7": 27
+      },
+      "merged_ratio": 0.25,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.25,
+      "expansion_log_entries": 57,
+      "expansion_event_counts": {
+        "(none)": 21,
+        "sent-to-reflection": 36
+      },
+      "best_leaf_score": 8.56,
+      "best_leaf_path": [
+        {
+          "id": "1879fbb0",
+          "depth": 0,
+          "equations": [
+            "eq_energy_dup_s174_L0"
+          ],
+          "thought_step": "Refine energy via consistency seed=174 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "energy",
+          "score": 8.77
+        },
+        {
+          "id": "2686ebee",
+          "depth": 1,
+          "equations": [
+            "eq_constraint_linear_L1_B0"
+          ],
+          "thought_step": "Refine constraint via linear seed=191 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.79
+        },
+        {
+          "id": "1384b03c",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "3144ff94",
+          "depth": 3,
+          "equations": [
+            "eq_closure_stability_L3_B1"
+          ],
+          "thought_step": "Refine closure via stability seed=367 level=3 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.71
+        },
+        {
+          "id": "1ef84962",
+          "depth": 4,
+          "equations": [
+            "local_step_4 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: introduce one missing constitutive relation or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and le",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "f165f787",
+          "depth": 5,
+          "equations": [
+            "eq_energy_consistency_L5_B0"
+          ],
+          "thought_step": "Refine energy via consistency seed=501 level=5 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.58
+        },
+        {
+          "id": "67db0169",
+          "depth": 6,
+          "equations": [
+            "eq_momentum_dup_s543_L6"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=543 level=6 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.55
+        },
+        {
+          "id": "b26ab4e2",
+          "depth": 7,
+          "equations": [
+            "eq_momentum_quadratic_L7_B0"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=590 level=7 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.56
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 43,
+        "min": 0.0,
+        "max": 8.56,
+        "avg": 5.3581
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 3,
+      "session_id": "f44606ca53424271b719eafabe4d9200",
+      "elapsed_sec": 2.987,
+      "total_nodes": 175,
+      "max_depth": 7,
+      "leaf_nodes": 117,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 120,
+        "merged-duplicate": 54,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 112,
+        "SOLVED": 63
+      },
+      "route_family_counts": {
+        "closure": 28,
+        "constraint": 24,
+        "energy": 108,
+        "momentum": 15
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 15,
+        "4": 12,
+        "5": 27,
+        "6": 45,
+        "7": 63
+      },
+      "merged_ratio": 0.3086,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3086,
+      "expansion_log_entries": 100,
+      "expansion_event_counts": {
+        "(none)": 58,
+        "sent-to-reflection": 42
+      },
+      "best_leaf_score": 8.67,
+      "best_leaf_path": [
+        {
+          "id": "1972f042",
+          "depth": 0,
+          "equations": [
+            "eq_closure_dup_s211_L0"
+          ],
+          "thought_step": "Refine closure via stability seed=211 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "closure",
+          "score": 8.8
+        },
+        {
+          "id": "63a5cf00",
+          "depth": 1,
+          "equations": [
+            "eq_momentum_quadratic_L1_B1"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=259 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.79
+        },
+        {
+          "id": "0c1f855a",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "f7dca3c6",
+          "depth": 3,
+          "equations": [
+            "eq_constraint_linear_L3_B2"
+          ],
+          "thought_step": "Refine constraint via linear seed=435 level=3 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.71
+        },
+        {
+          "id": "d6612114",
+          "depth": 4,
+          "equations": [
+            "eq_momentum_dup_s532_L4"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=532 level=4 branch=1",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "momentum",
+          "score": 8.67
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 117,
+        "min": 0.0,
+        "max": 8.67,
+        "avg": 7.3116
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 4,
+      "session_id": "8a50b2a68e32484c96d7e5d721ff6ee9",
+      "elapsed_sec": 1.377,
+      "total_nodes": 82,
+      "max_depth": 7,
+      "leaf_nodes": 55,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 29,
+        "merged-duplicate": 52,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 79,
+        "SOLVED": 3
+      },
+      "route_family_counts": {
+        "closure": 30,
+        "constraint": 10,
+        "energy": 6,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 3
+      },
+      "merged_ratio": 0.6341,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6341,
+      "expansion_log_entries": 135,
+      "expansion_event_counts": {
+        "(none)": 27,
+        "sent-to-reflection": 108
+      },
+      "best_leaf_score": 8.56,
+      "best_leaf_path": [
+        {
+          "id": "1ae0e930",
+          "depth": 0,
+          "equations": [
+            "eq_constraint_dup_s248_L0"
+          ],
+          "thought_step": "Refine constraint via linear seed=248 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "constraint",
+          "score": 8.83
+        },
+        {
+          "id": "8ad4f1ee",
+          "depth": 1,
+          "equations": [
+            "eq_energy_consistency_L1_B2"
+          ],
+          "thought_step": "Refine energy via consistency seed=327 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.79
+        },
+        {
+          "id": "dbf15be2",
+          "depth": 2,
+          "equations": [
+            "eq_momentum_dup_s383_L2"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=383 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.75
+        },
+        {
+          "id": "145c8986",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 0.0
+        },
+        {
+          "id": "606638ff",
+          "depth": 4,
+          "equations": [
+            "eq_energy_consistency_L4_B2"
+          ],
+          "thought_step": "Refine energy via consistency seed=600 level=4 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.67
+        },
+        {
+          "id": "ba05447c",
+          "depth": 5,
+          "equations": [
+            "eq_constraint_linear_L5_B0"
+          ],
+          "thought_step": "Refine constraint via linear seed=671 level=5 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.63
+        },
+        {
+          "id": "0dd9d2e1",
+          "depth": 6,
+          "equations": [
+            "local_step_6 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: extract one candidate answer expression. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "0e207968",
+          "depth": 7,
+          "equations": [
+            "eq_closure_stability_L7_B2"
+          ],
+          "thought_step": "Refine closure via stability seed=918 level=7 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.56
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 55,
+        "min": 0.0,
+        "max": 8.56,
+        "avg": 0.4655
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 5,
+      "session_id": "c522315ae70d47f88adb26a717535b3e",
+      "elapsed_sec": 7.986,
+      "total_nodes": 187,
+      "max_depth": 7,
+      "leaf_nodes": 125,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 121,
+        "merged-duplicate": 65,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 127,
+        "SOLVED": 60
+      },
+      "route_family_counts": {
+        "closure": 15,
+        "constraint": 105,
+        "energy": 36,
+        "momentum": 31
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 12,
+        "5": 30,
+        "6": 45,
+        "7": 60
+      },
+      "merged_ratio": 0.3476,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3476,
+      "expansion_log_entries": 142,
+      "expansion_event_counts": {
+        "(none)": 62,
+        "sent-to-reflection": 80
+      },
+      "best_leaf_score": 8.67,
+      "best_leaf_path": [
+        {
+          "id": "3e978ddc",
+          "depth": 0,
+          "equations": [
+            "eq_momentum_dup_s285_L0"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=285 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.77
+        },
+        {
+          "id": "46ab1a9b",
+          "depth": 1,
+          "equations": [
+            "eq_closure_stability_L1_B0"
+          ],
+          "thought_step": "Refine closure via stability seed=302 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "2cadd1d4",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "7fd8f2a8",
+          "depth": 3,
+          "equations": [
+            "eq_energy_consistency_L3_B2"
+          ],
+          "thought_step": "Refine energy via consistency seed=413 level=3 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.69
+        },
+        {
+          "id": "9dc16377",
+          "depth": 4,
+          "equations": [
+            "eq_closure_dup_s479_L4"
+          ],
+          "thought_step": "Refine closure via stability seed=479 level=4 branch=0",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "closure",
+          "score": 8.67
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 125,
+        "min": 0.0,
+        "max": 8.67,
+        "avg": 6.0902
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 1,
+      "session_id": "d1fd3d1afe6a4166a334bc4cdb680f5f",
+      "elapsed_sec": 2.206,
+      "total_nodes": 121,
+      "max_depth": 7,
+      "leaf_nodes": 81,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 43,
+        "merged-duplicate": 77,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 121
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "constraint": 69,
+        "energy": 36,
+        "momentum": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 42
+      },
+      "merged_ratio": 0.6364,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6364,
+      "expansion_log_entries": 190,
+      "expansion_event_counts": {
+        "(none)": 40,
+        "sent-to-reflection": 150
+      },
+      "best_leaf_score": 8.6,
+      "best_leaf_path": [
+        {
+          "id": "68825f6a",
+          "depth": 0,
+          "equations": [
+            "eq_momentum_dup_s137_L0"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=137 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.83
+        },
+        {
+          "id": "7f23a803",
+          "depth": 1,
+          "equations": [
+            "eq_closure_stability_L1_B2"
+          ],
+          "thought_step": "Refine closure via stability seed=216 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "37160df3",
+          "depth": 2,
+          "equations": [
+            "eq_energy_dup_s272_L2"
+          ],
+          "thought_step": "Refine energy via consistency seed=272 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.75
+        },
+        {
+          "id": "3c69f79b",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "8cf3456c",
+          "depth": 4,
+          "equations": [
+            "eq_closure_dup_s458_L4"
+          ],
+          "thought_step": "Refine closure via stability seed=458 level=4 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.62
+        },
+        {
+          "id": "aeee2311",
+          "depth": 5,
+          "equations": [
+            "eq_momentum_quadratic_L5_B1"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=543 level=5 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.61
+        },
+        {
+          "id": "cb1f5642",
+          "depth": 6,
+          "equations": [
+            "eq_constraint_dup_s602_L6"
+          ],
+          "thought_step": "Refine constraint via linear seed=602 level=6 branch=0",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "constraint",
+          "score": 8.6
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 81,
+        "min": 0.0,
+        "max": 8.6,
+        "avg": 0.8453
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 2,
+      "session_id": "219cc4e9250540fb82b4ba4fc4b2e1f9",
+      "elapsed_sec": 1.185,
+      "total_nodes": 64,
+      "max_depth": 7,
+      "leaf_nodes": 43,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 21,
+        "merged-duplicate": 42,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 64
+      },
+      "route_family_counts": {
+        "closure": 12,
+        "constraint": 12,
+        "energy": 4,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 3,
+        "4": 9,
+        "5": 3,
+        "6": 9,
+        "7": 27
+      },
+      "merged_ratio": 0.6562,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6562,
+      "expansion_log_entries": 111,
+      "expansion_event_counts": {
+        "(none)": 21,
+        "sent-to-reflection": 90
+      },
+      "best_leaf_score": 0.0,
+      "best_leaf_path": [
+        {
+          "id": "cffd6905",
+          "depth": 0,
+          "equations": [
+            "eq_energy_dup_s174_L0"
+          ],
+          "thought_step": "Refine energy via consistency seed=174 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "energy",
+          "score": 8.77
+        },
+        {
+          "id": "1c665379",
+          "depth": 1,
+          "equations": [
+            "eq_constraint_linear_L1_B0"
+          ],
+          "thought_step": "Refine constraint via linear seed=191 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.79
+        },
+        {
+          "id": "a5f38647",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "closure",
+          "score": 0.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 43,
+        "min": 0.0,
+        "max": 0.0,
+        "avg": 0.0
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 3,
+      "session_id": "b0c491e76eec45efbb52f408a1f84896",
+      "elapsed_sec": 9.286,
+      "total_nodes": 202,
+      "max_depth": 7,
+      "leaf_nodes": 135,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 70,
+        "merged-duplicate": 131,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 202
+      },
+      "route_family_counts": {
+        "closure": 37,
+        "constraint": 24,
+        "energy": 126,
+        "momentum": 15
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 15,
+        "4": 12,
+        "5": 36,
+        "6": 54,
+        "7": 72
+      },
+      "merged_ratio": 0.6485,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6485,
+      "expansion_log_entries": 247,
+      "expansion_event_counts": {
+        "(none)": 67,
+        "sent-to-reflection": 180
+      },
+      "best_leaf_score": 8.63,
+      "best_leaf_path": [
+        {
+          "id": "c8ef848c",
+          "depth": 0,
+          "equations": [
+            "eq_closure_dup_s211_L0"
+          ],
+          "thought_step": "Refine closure via stability seed=211 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "closure",
+          "score": 8.8
+        },
+        {
+          "id": "716e782d",
+          "depth": 1,
+          "equations": [
+            "eq_momentum_quadratic_L1_B1"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=259 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.79
+        },
+        {
+          "id": "1b72348a",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "bc648b01",
+          "depth": 3,
+          "equations": [
+            "eq_constraint_linear_L3_B0"
+          ],
+          "thought_step": "Refine constraint via linear seed=373 level=3 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.69
+        },
+        {
+          "id": "96f90d27",
+          "depth": 4,
+          "equations": [
+            "eq_momentum_quadratic_L4_B2"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=467 level=4 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.65
+        },
+        {
+          "id": "4cd2094a",
+          "depth": 5,
+          "equations": [
+            "eq_closure_stability_L5_B2"
+          ],
+          "thought_step": "Refine closure via stability seed=600 level=5 branch=2",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "closure",
+          "score": 8.63
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 135,
+        "min": 0.0,
+        "max": 8.63,
+        "avg": 3.1156
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 4,
+      "session_id": "192fae0778d2481986f940d5d4cc84b0",
+      "elapsed_sec": 1.462,
+      "total_nodes": 82,
+      "max_depth": 7,
+      "leaf_nodes": 55,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 29,
+        "merged-duplicate": 52,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 82
+      },
+      "route_family_counts": {
+        "closure": 30,
+        "constraint": 10,
+        "energy": 6,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 3
+      },
+      "merged_ratio": 0.6341,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6341,
+      "expansion_log_entries": 135,
+      "expansion_event_counts": {
+        "(none)": 27,
+        "sent-to-reflection": 108
+      },
+      "best_leaf_score": 8.56,
+      "best_leaf_path": [
+        {
+          "id": "7f93a40f",
+          "depth": 0,
+          "equations": [
+            "eq_constraint_dup_s248_L0"
+          ],
+          "thought_step": "Refine constraint via linear seed=248 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "constraint",
+          "score": 8.83
+        },
+        {
+          "id": "f512aa0c",
+          "depth": 1,
+          "equations": [
+            "eq_energy_consistency_L1_B2"
+          ],
+          "thought_step": "Refine energy via consistency seed=327 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.79
+        },
+        {
+          "id": "a6acd59c",
+          "depth": 2,
+          "equations": [
+            "eq_momentum_dup_s383_L2"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=383 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.75
+        },
+        {
+          "id": "444c3150",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 0.0
+        },
+        {
+          "id": "f61a4a1b",
+          "depth": 4,
+          "equations": [
+            "eq_energy_consistency_L4_B2"
+          ],
+          "thought_step": "Refine energy via consistency seed=600 level=4 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.67
+        },
+        {
+          "id": "b1b9b623",
+          "depth": 5,
+          "equations": [
+            "eq_constraint_linear_L5_B0"
+          ],
+          "thought_step": "Refine constraint via linear seed=671 level=5 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.63
+        },
+        {
+          "id": "01a0946d",
+          "depth": 6,
+          "equations": [
+            "local_step_6 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: extract one candidate answer expression. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "dedfd87a",
+          "depth": 7,
+          "equations": [
+            "eq_closure_stability_L7_B2"
+          ],
+          "thought_step": "Refine closure via stability seed=822 level=7 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.56
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 55,
+        "min": 0.0,
+        "max": 8.56,
+        "avg": 0.4655
+      }
+    },
+    {
+      "scenario": "duplicate_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 5,
+      "session_id": "bfea8e9a34ce4ca499cdb09e13660b03",
+      "elapsed_sec": 10.102,
+      "total_nodes": 214,
+      "max_depth": 7,
+      "leaf_nodes": 143,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 74,
+        "merged-duplicate": 139,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 214
+      },
+      "route_family_counts": {
+        "closure": 15,
+        "constraint": 126,
+        "energy": 36,
+        "momentum": 37
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 12,
+        "5": 36,
+        "6": 54,
+        "7": 72
+      },
+      "merged_ratio": 0.6495,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6495,
+      "expansion_log_entries": 293,
+      "expansion_event_counts": {
+        "(none)": 71,
+        "sent-to-reflection": 222
+      },
+      "best_leaf_score": 8.63,
+      "best_leaf_path": [
+        {
+          "id": "356dac74",
+          "depth": 0,
+          "equations": [
+            "eq_momentum_dup_s285_L0"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=285 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.77
+        },
+        {
+          "id": "057087f2",
+          "depth": 1,
+          "equations": [
+            "eq_closure_stability_L1_B0"
+          ],
+          "thought_step": "Refine closure via stability seed=302 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "ee69943d",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "9d757412",
+          "depth": 3,
+          "equations": [
+            "eq_energy_consistency_L3_B0"
+          ],
+          "thought_step": "Refine energy via consistency seed=351 level=3 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.66
+        },
+        {
+          "id": "4e436b4d",
+          "depth": 4,
+          "equations": [
+            "eq_closure_dup_s414_L4"
+          ],
+          "thought_step": "Refine closure via stability seed=414 level=4 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.65
+        },
+        {
+          "id": "94d4fa63",
+          "depth": 5,
+          "equations": [
+            "eq_momentum_quadratic_L5_B1"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=499 level=5 branch=1",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "momentum",
+          "score": 8.63
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 143,
+        "min": 0.0,
+        "max": 8.63,
+        "avg": 2.1615
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 1,
+      "session_id": "8e4f1313c3ec4e6382cd8d65322b41c9",
+      "elapsed_sec": 0.707,
+      "total_nodes": 40,
+      "max_depth": 5,
+      "leaf_nodes": 27,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 22,
+        "merged-duplicate": 17,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 40
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "energy": 27,
+        "momentum": 7
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 18,
+        "4": 3,
+        "5": 6
+      },
+      "merged_ratio": 0.425,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.425,
+      "expansion_log_entries": 49,
+      "expansion_event_counts": {
+        "(none)": 13,
+        "sent-to-reflection": 36
+      },
+      "best_leaf_score": 8.7,
+      "best_leaf_path": [
+        {
+          "id": "36f3e5d2",
+          "depth": 0,
+          "equations": [
+            "eq_unique_momentum_quadratic_s137_L0_B0_137"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=137 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.83
+        },
+        {
+          "id": "ed25fa70",
+          "depth": 1,
+          "equations": [
+            "eq_unique_closure_stability_s154_L1_B0_161"
+          ],
+          "thought_step": "Refine closure via stability seed=154 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.76
+        },
+        {
+          "id": "722468a2",
+          "depth": 2,
+          "equations": [
+            "eq_unique_energy_consistency_s238_L2_B2_278"
+          ],
+          "thought_step": "Refine energy via consistency seed=238 level=2 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.7
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 27,
+        "min": 0.0,
+        "max": 8.7,
+        "avg": 3.1985
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 2,
+      "session_id": "376a209dec9d4f6e85173692e97ccdbb",
+      "elapsed_sec": 0.631,
+      "total_nodes": 25,
+      "max_depth": 5,
+      "leaf_nodes": 17,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 11,
+        "merged-duplicate": 13,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 25
+      },
+      "route_family_counts": {
+        "closure": 12,
+        "constraint": 9,
+        "energy": 4
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 3,
+        "4": 6,
+        "5": 3
+      },
+      "merged_ratio": 0.52,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.52,
+      "expansion_log_entries": 38,
+      "expansion_event_counts": {
+        "(none)": 8,
+        "sent-to-reflection": 30
+      },
+      "best_leaf_score": 8.66,
+      "best_leaf_path": [
+        {
+          "id": "de96afc2",
+          "depth": 0,
+          "equations": [
+            "eq_unique_energy_consistency_s174_L0_B0_174"
+          ],
+          "thought_step": "Refine energy via consistency seed=174 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "energy",
+          "score": 8.77
+        },
+        {
+          "id": "317b4882",
+          "depth": 1,
+          "equations": [
+            "eq_unique_constraint_linear_s191_L1_B0_198"
+          ],
+          "thought_step": "Refine constraint via linear seed=191 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.79
+        },
+        {
+          "id": "42e56112",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "41c83c3c",
+          "depth": 3,
+          "equations": [
+            "eq_unique_closure_stability_s336_L3_B0_357"
+          ],
+          "thought_step": "Refine closure via stability seed=336 level=3 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.66
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 17,
+        "min": 0.0,
+        "max": 8.66,
+        "avg": 2.0282
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 3,
+      "session_id": "407a7316bd3644e3bcd1154821cdcd2a",
+      "elapsed_sec": 0.765,
+      "total_nodes": 49,
+      "max_depth": 5,
+      "leaf_nodes": 33,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 30,
+        "merged-duplicate": 18,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 49
+      },
+      "route_family_counts": {
+        "closure": 13,
+        "constraint": 24,
+        "momentum": 12
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 15,
+        "4": 9,
+        "5": 12
+      },
+      "merged_ratio": 0.3673,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3673,
+      "expansion_log_entries": 50,
+      "expansion_event_counts": {
+        "(none)": 16,
+        "sent-to-reflection": 34
+      },
+      "best_leaf_score": 8.67,
+      "best_leaf_path": [
+        {
+          "id": "ee4eeeb5",
+          "depth": 0,
+          "equations": [
+            "eq_unique_closure_stability_s211_L0_B0_211"
+          ],
+          "thought_step": "Refine closure via stability seed=211 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "closure",
+          "score": 8.8
+        },
+        {
+          "id": "fa969311",
+          "depth": 1,
+          "equations": [
+            "eq_unique_momentum_quadratic_s259_L1_B1_279"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=259 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.79
+        },
+        {
+          "id": "006c364c",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "499229fa",
+          "depth": 3,
+          "equations": [
+            "eq_unique_constraint_linear_s435_L3_B2_482"
+          ],
+          "thought_step": "Refine constraint via linear seed=435 level=3 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.71
+        },
+        {
+          "id": "936e0397",
+          "depth": 4,
+          "equations": [
+            "eq_unique_momentum_quadratic_s532_L4_B1_573"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=532 level=4 branch=1",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "momentum",
+          "score": 8.67
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 33,
+        "min": 0.0,
+        "max": 8.67,
+        "avg": 4.7006
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 4,
+      "session_id": "d6031d11e2e04f53ac8b21dfccd7296a",
+      "elapsed_sec": 0.699,
+      "total_nodes": 40,
+      "max_depth": 5,
+      "leaf_nodes": 27,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 22,
+        "merged-duplicate": 17,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 40
+      },
+      "route_family_counts": {
+        "constraint": 7,
+        "energy": 6,
+        "momentum": 27
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 18,
+        "4": 3,
+        "5": 6
+      },
+      "merged_ratio": 0.425,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.425,
+      "expansion_log_entries": 49,
+      "expansion_event_counts": {
+        "(none)": 13,
+        "sent-to-reflection": 36
+      },
+      "best_leaf_score": 8.7,
+      "best_leaf_path": [
+        {
+          "id": "f516c3f4",
+          "depth": 0,
+          "equations": [
+            "eq_unique_constraint_linear_s248_L0_B0_248"
+          ],
+          "thought_step": "Refine constraint via linear seed=248 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "constraint",
+          "score": 8.83
+        },
+        {
+          "id": "9adcd021",
+          "depth": 1,
+          "equations": [
+            "eq_unique_energy_consistency_s265_L1_B0_272"
+          ],
+          "thought_step": "Refine energy via consistency seed=265 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.76
+        },
+        {
+          "id": "55a3de7c",
+          "depth": 2,
+          "equations": [
+            "eq_unique_momentum_quadratic_s349_L2_B2_389"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=349 level=2 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.7
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 27,
+        "min": 0.0,
+        "max": 8.7,
+        "avg": 3.1985
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "low",
+      "run_index": 5,
+      "session_id": "09846cf57cd049c281ef434741608270",
+      "elapsed_sec": 0.713,
+      "total_nodes": 40,
+      "max_depth": 5,
+      "leaf_nodes": 27,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 22,
+        "merged-duplicate": 17,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 40
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "energy": 27,
+        "momentum": 7
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 18,
+        "4": 3,
+        "5": 6
+      },
+      "merged_ratio": 0.425,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.425,
+      "expansion_log_entries": 51,
+      "expansion_event_counts": {
+        "(none)": 13,
+        "sent-to-reflection": 38
+      },
+      "best_leaf_score": 8.7,
+      "best_leaf_path": [
+        {
+          "id": "a2258f0e",
+          "depth": 0,
+          "equations": [
+            "eq_unique_momentum_quadratic_s285_L0_B0_285"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=285 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.77
+        },
+        {
+          "id": "d493043f",
+          "depth": 1,
+          "equations": [
+            "eq_unique_closure_stability_s333_L1_B1_353"
+          ],
+          "thought_step": "Refine closure via stability seed=333 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.76
+        },
+        {
+          "id": "a4f9dded",
+          "depth": 2,
+          "equations": [
+            "eq_unique_energy_consistency_s372_L2_B0_386"
+          ],
+          "thought_step": "Refine energy via consistency seed=372 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.7
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 27,
+        "min": 0.0,
+        "max": 8.7,
+        "avg": 2.8763
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 1,
+      "session_id": "0092031aaa5948f7b977590a87459388",
+      "elapsed_sec": 1.888,
+      "total_nodes": 121,
+      "max_depth": 7,
+      "leaf_nodes": 81,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 81,
+        "merged-duplicate": 39,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 79,
+        "SOLVED": 42
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "constraint": 69,
+        "energy": 36,
+        "momentum": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 42
+      },
+      "merged_ratio": 0.3223,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3223,
+      "expansion_log_entries": 112,
+      "expansion_event_counts": {
+        "(none)": 40,
+        "sent-to-reflection": 72
+      },
+      "best_leaf_score": 8.6,
+      "best_leaf_path": [
+        {
+          "id": "f33c15ca",
+          "depth": 0,
+          "equations": [
+            "eq_unique_momentum_quadratic_s137_L0_B0_137"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=137 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.83
+        },
+        {
+          "id": "50b2add8",
+          "depth": 1,
+          "equations": [
+            "eq_unique_closure_stability_s216_L1_B2_249"
+          ],
+          "thought_step": "Refine closure via stability seed=216 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "e9c8a427",
+          "depth": 2,
+          "equations": [
+            "eq_unique_energy_consistency_s272_L2_B0_286"
+          ],
+          "thought_step": "Refine energy via consistency seed=272 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.75
+        },
+        {
+          "id": "0061a336",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "6eff53bc",
+          "depth": 4,
+          "equations": [
+            "eq_unique_closure_stability_s458_L4_B1_499"
+          ],
+          "thought_step": "Refine closure via stability seed=458 level=4 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.62
+        },
+        {
+          "id": "84f6ffa0",
+          "depth": 5,
+          "equations": [
+            "eq_unique_momentum_quadratic_s543_L5_B1_591"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=543 level=5 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.61
+        },
+        {
+          "id": "8b0ec3c6",
+          "depth": 6,
+          "equations": [
+            "eq_unique_constraint_linear_s602_L6_B0_644"
+          ],
+          "thought_step": "Refine constraint via linear seed=602 level=6 branch=0",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "constraint",
+          "score": 8.6
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 81,
+        "min": 0.0,
+        "max": 8.6,
+        "avg": 4.954
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 2,
+      "session_id": "bc155b7395ef4ed3a5653076105433bc",
+      "elapsed_sec": 1.055,
+      "total_nodes": 64,
+      "max_depth": 7,
+      "leaf_nodes": 43,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 47,
+        "merged-duplicate": 16,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 37,
+        "SOLVED": 27
+      },
+      "route_family_counts": {
+        "closure": 12,
+        "constraint": 12,
+        "energy": 4,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 3,
+        "4": 9,
+        "5": 3,
+        "6": 9,
+        "7": 27
+      },
+      "merged_ratio": 0.25,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.25,
+      "expansion_log_entries": 57,
+      "expansion_event_counts": {
+        "(none)": 21,
+        "sent-to-reflection": 36
+      },
+      "best_leaf_score": 8.56,
+      "best_leaf_path": [
+        {
+          "id": "38fd3004",
+          "depth": 0,
+          "equations": [
+            "eq_unique_energy_consistency_s174_L0_B0_174"
+          ],
+          "thought_step": "Refine energy via consistency seed=174 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "energy",
+          "score": 8.77
+        },
+        {
+          "id": "4efde3a5",
+          "depth": 1,
+          "equations": [
+            "eq_unique_constraint_linear_s191_L1_B0_198"
+          ],
+          "thought_step": "Refine constraint via linear seed=191 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.79
+        },
+        {
+          "id": "46be44b9",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "e2df4f40",
+          "depth": 3,
+          "equations": [
+            "eq_unique_closure_stability_s271_L3_B1_305"
+          ],
+          "thought_step": "Refine closure via stability seed=271 level=3 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.71
+        },
+        {
+          "id": "5228a7a0",
+          "depth": 4,
+          "equations": [
+            "local_step_4 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: introduce one missing constitutive relation or closure. Add or correct exactly one quantity, relation, approximation, or correction term, and le",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "498d2f31",
+          "depth": 5,
+          "equations": [
+            "eq_unique_energy_consistency_s453_L5_B0_488"
+          ],
+          "thought_step": "Refine energy via consistency seed=453 level=5 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.58
+        },
+        {
+          "id": "198f54f5",
+          "depth": 6,
+          "equations": [
+            "eq_unique_momentum_quadratic_s495_L6_B0_537"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=495 level=6 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.55
+        },
+        {
+          "id": "aecca7d1",
+          "depth": 7,
+          "equations": [
+            "eq_unique_momentum_quadratic_s542_L7_B0_591"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=542 level=7 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.56
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 43,
+        "min": 0.0,
+        "max": 8.56,
+        "avg": 5.3581
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 3,
+      "session_id": "a8e168c6fed242a9aa7ba530b82d12e8",
+      "elapsed_sec": 8.463,
+      "total_nodes": 202,
+      "max_depth": 7,
+      "leaf_nodes": 135,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 138,
+        "merged-duplicate": 63,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 130,
+        "SOLVED": 72
+      },
+      "route_family_counts": {
+        "closure": 37,
+        "constraint": 24,
+        "energy": 126,
+        "momentum": 15
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 15,
+        "4": 12,
+        "5": 36,
+        "6": 54,
+        "7": 72
+      },
+      "merged_ratio": 0.3119,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3119,
+      "expansion_log_entries": 109,
+      "expansion_event_counts": {
+        "(none)": 67,
+        "sent-to-reflection": 42
+      },
+      "best_leaf_score": 8.63,
+      "best_leaf_path": [
+        {
+          "id": "7dc669be",
+          "depth": 0,
+          "equations": [
+            "eq_unique_closure_stability_s211_L0_B0_211"
+          ],
+          "thought_step": "Refine closure via stability seed=211 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "closure",
+          "score": 8.8
+        },
+        {
+          "id": "7b87b2d5",
+          "depth": 1,
+          "equations": [
+            "eq_unique_momentum_quadratic_s259_L1_B1_279"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=259 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.79
+        },
+        {
+          "id": "3f138c34",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "b4d28398",
+          "depth": 3,
+          "equations": [
+            "eq_unique_constraint_linear_s373_L3_B0_394"
+          ],
+          "thought_step": "Refine constraint via linear seed=373 level=3 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.69
+        },
+        {
+          "id": "b8804b01",
+          "depth": 4,
+          "equations": [
+            "eq_unique_momentum_quadratic_s467_L4_B2_521"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=467 level=4 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.65
+        },
+        {
+          "id": "a17b924f",
+          "depth": 5,
+          "equations": [
+            "eq_unique_closure_stability_s600_L5_B2_661"
+          ],
+          "thought_step": "Refine closure via stability seed=600 level=5 branch=2",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "closure",
+          "score": 8.63
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 135,
+        "min": 0.0,
+        "max": 8.63,
+        "avg": 7.477
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 4,
+      "session_id": "d42376f49833436c84b92dd360b66976",
+      "elapsed_sec": 1.383,
+      "total_nodes": 82,
+      "max_depth": 7,
+      "leaf_nodes": 55,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 29,
+        "merged-duplicate": 52,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 79,
+        "SOLVED": 3
+      },
+      "route_family_counts": {
+        "closure": 30,
+        "constraint": 10,
+        "energy": 6,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 3
+      },
+      "merged_ratio": 0.6341,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6341,
+      "expansion_log_entries": 135,
+      "expansion_event_counts": {
+        "(none)": 27,
+        "sent-to-reflection": 108
+      },
+      "best_leaf_score": 8.56,
+      "best_leaf_path": [
+        {
+          "id": "1be128d5",
+          "depth": 0,
+          "equations": [
+            "eq_unique_constraint_linear_s248_L0_B0_248"
+          ],
+          "thought_step": "Refine constraint via linear seed=248 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "constraint",
+          "score": 8.83
+        },
+        {
+          "id": "85f450da",
+          "depth": 1,
+          "equations": [
+            "eq_unique_energy_consistency_s327_L1_B2_360"
+          ],
+          "thought_step": "Refine energy via consistency seed=327 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.79
+        },
+        {
+          "id": "7eddb690",
+          "depth": 2,
+          "equations": [
+            "eq_unique_momentum_quadratic_s383_L2_B0_397"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=383 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.75
+        },
+        {
+          "id": "2acc4673",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 0.0
+        },
+        {
+          "id": "9660b2b1",
+          "depth": 4,
+          "equations": [
+            "eq_unique_energy_consistency_s600_L4_B2_654"
+          ],
+          "thought_step": "Refine energy via consistency seed=600 level=4 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.67
+        },
+        {
+          "id": "c65eb0e0",
+          "depth": 5,
+          "equations": [
+            "eq_unique_constraint_linear_s671_L5_B0_706"
+          ],
+          "thought_step": "Refine constraint via linear seed=671 level=5 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.63
+        },
+        {
+          "id": "796e1471",
+          "depth": 6,
+          "equations": [
+            "local_step_6 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: extract one candidate answer expression. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "6e987ab2",
+          "depth": 7,
+          "equations": [
+            "eq_unique_closure_stability_s870_L7_B2_945"
+          ],
+          "thought_step": "Refine closure via stability seed=870 level=7 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.56
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 55,
+        "min": 0.0,
+        "max": 8.56,
+        "avg": 0.4655
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "medium",
+      "run_index": 5,
+      "session_id": "865fcba1a6fd477d91eca16b41fab9e4",
+      "elapsed_sec": 3.356,
+      "total_nodes": 184,
+      "max_depth": 7,
+      "leaf_nodes": 123,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 120,
+        "merged-duplicate": 63,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 124,
+        "SOLVED": 60
+      },
+      "route_family_counts": {
+        "closure": 15,
+        "constraint": 105,
+        "energy": 36,
+        "momentum": 28
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 12,
+        "5": 27,
+        "6": 45,
+        "7": 60
+      },
+      "merged_ratio": 0.3424,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.3424,
+      "expansion_log_entries": 141,
+      "expansion_event_counts": {
+        "(none)": 61,
+        "sent-to-reflection": 80
+      },
+      "best_leaf_score": 8.67,
+      "best_leaf_path": [
+        {
+          "id": "7f4751b3",
+          "depth": 0,
+          "equations": [
+            "eq_unique_momentum_quadratic_s285_L0_B0_285"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=285 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.77
+        },
+        {
+          "id": "dc337596",
+          "depth": 1,
+          "equations": [
+            "eq_unique_closure_stability_s302_L1_B0_309"
+          ],
+          "thought_step": "Refine closure via stability seed=302 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "06a1f4a8",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "156c2eba",
+          "depth": 3,
+          "equations": [
+            "eq_unique_energy_consistency_s382_L3_B1_416"
+          ],
+          "thought_step": "Refine energy via consistency seed=382 level=3 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.71
+        },
+        {
+          "id": "a50e9165",
+          "depth": 4,
+          "equations": [
+            "eq_unique_closure_stability_s431_L4_B0_459"
+          ],
+          "thought_step": "Refine closure via stability seed=431 level=4 branch=0",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "closure",
+          "score": 8.67
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 123,
+        "min": 0.0,
+        "max": 8.67,
+        "avg": 6.0493
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 1,
+      "session_id": "9338bf90f44b459ab08f392f3e21cce8",
+      "elapsed_sec": 2.232,
+      "total_nodes": 121,
+      "max_depth": 7,
+      "leaf_nodes": 81,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 43,
+        "merged-duplicate": 77,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 121
+      },
+      "route_family_counts": {
+        "closure": 6,
+        "constraint": 69,
+        "energy": 36,
+        "momentum": 10
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 42
+      },
+      "merged_ratio": 0.6364,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6364,
+      "expansion_log_entries": 188,
+      "expansion_event_counts": {
+        "(none)": 40,
+        "sent-to-reflection": 148
+      },
+      "best_leaf_score": 8.6,
+      "best_leaf_path": [
+        {
+          "id": "e12a0b7c",
+          "depth": 0,
+          "equations": [
+            "eq_unique_momentum_quadratic_s137_L0_B0_137"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=137 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.83
+        },
+        {
+          "id": "315b620c",
+          "depth": 1,
+          "equations": [
+            "eq_unique_closure_stability_s216_L1_B2_249"
+          ],
+          "thought_step": "Refine closure via stability seed=216 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "7519c620",
+          "depth": 2,
+          "equations": [
+            "eq_unique_energy_consistency_s272_L2_B0_286"
+          ],
+          "thought_step": "Refine energy via consistency seed=272 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.75
+        },
+        {
+          "id": "65582bfe",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "19fdca84",
+          "depth": 4,
+          "equations": [
+            "eq_unique_closure_stability_s410_L4_B1_451"
+          ],
+          "thought_step": "Refine closure via stability seed=410 level=4 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.62
+        },
+        {
+          "id": "26656ab9",
+          "depth": 5,
+          "equations": [
+            "eq_unique_momentum_quadratic_s495_L5_B1_543"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=495 level=5 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.61
+        },
+        {
+          "id": "c0b96c0d",
+          "depth": 6,
+          "equations": [
+            "eq_unique_constraint_linear_s554_L6_B0_596"
+          ],
+          "thought_step": "Refine constraint via linear seed=554 level=6 branch=0",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "constraint",
+          "score": 8.6
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 81,
+        "min": 0.0,
+        "max": 8.6,
+        "avg": 0.9509
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 2,
+      "session_id": "f492cf9432654cd19d343816c1b27d65",
+      "elapsed_sec": 5.972,
+      "total_nodes": 64,
+      "max_depth": 7,
+      "leaf_nodes": 43,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 21,
+        "merged-duplicate": 42,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 64
+      },
+      "route_family_counts": {
+        "closure": 12,
+        "constraint": 12,
+        "energy": 4,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 3,
+        "4": 9,
+        "5": 3,
+        "6": 9,
+        "7": 27
+      },
+      "merged_ratio": 0.6562,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6562,
+      "expansion_log_entries": 111,
+      "expansion_event_counts": {
+        "(none)": 21,
+        "sent-to-reflection": 90
+      },
+      "best_leaf_score": 0.0,
+      "best_leaf_path": [
+        {
+          "id": "9addc421",
+          "depth": 0,
+          "equations": [
+            "eq_unique_energy_consistency_s174_L0_B0_174"
+          ],
+          "thought_step": "Refine energy via consistency seed=174 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "energy",
+          "score": 8.77
+        },
+        {
+          "id": "4b59bcba",
+          "depth": 1,
+          "equations": [
+            "eq_unique_constraint_linear_s191_L1_B0_198"
+          ],
+          "thought_step": "Refine constraint via linear seed=191 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.79
+        },
+        {
+          "id": "288aac39",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "closure",
+          "score": 0.0
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 43,
+        "min": 0.0,
+        "max": 0.0,
+        "avg": 0.0
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 3,
+      "session_id": "0e221695ae444236922281c42127dd48",
+      "elapsed_sec": 3.737,
+      "total_nodes": 175,
+      "max_depth": 7,
+      "leaf_nodes": 117,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 61,
+        "merged-duplicate": 113,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 175
+      },
+      "route_family_counts": {
+        "closure": 25,
+        "constraint": 24,
+        "energy": 111,
+        "momentum": 15
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 15,
+        "4": 12,
+        "5": 24,
+        "6": 45,
+        "7": 66
+      },
+      "merged_ratio": 0.6457,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6457,
+      "expansion_log_entries": 228,
+      "expansion_event_counts": {
+        "(none)": 58,
+        "sent-to-reflection": 170
+      },
+      "best_leaf_score": 8.67,
+      "best_leaf_path": [
+        {
+          "id": "688559cb",
+          "depth": 0,
+          "equations": [
+            "eq_unique_closure_stability_s211_L0_B0_211"
+          ],
+          "thought_step": "Refine closure via stability seed=211 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "closure",
+          "score": 8.8
+        },
+        {
+          "id": "8778fcf2",
+          "depth": 1,
+          "equations": [
+            "eq_unique_momentum_quadratic_s259_L1_B1_279"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=259 level=1 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.79
+        },
+        {
+          "id": "53ad9134",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 0.0
+        },
+        {
+          "id": "c9a16491",
+          "depth": 3,
+          "equations": [
+            "eq_unique_constraint_linear_s387_L3_B2_434"
+          ],
+          "thought_step": "Refine constraint via linear seed=387 level=3 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.71
+        },
+        {
+          "id": "9160e9df",
+          "depth": 4,
+          "equations": [
+            "eq_unique_momentum_quadratic_s484_L4_B1_525"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=484 level=4 branch=1",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "momentum",
+          "score": 8.67
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 117,
+        "min": 0.0,
+        "max": 8.67,
+        "avg": 2.6416
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 4,
+      "session_id": "a072d63a1bd144428ed1b45076e684a0",
+      "elapsed_sec": 1.465,
+      "total_nodes": 82,
+      "max_depth": 7,
+      "leaf_nodes": 55,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 29,
+        "merged-duplicate": 52,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 82
+      },
+      "route_family_counts": {
+        "closure": 30,
+        "constraint": 10,
+        "energy": 6,
+        "momentum": 36
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 3,
+        "5": 9,
+        "6": 27,
+        "7": 3
+      },
+      "merged_ratio": 0.6341,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6341,
+      "expansion_log_entries": 135,
+      "expansion_event_counts": {
+        "(none)": 27,
+        "sent-to-reflection": 108
+      },
+      "best_leaf_score": 8.56,
+      "best_leaf_path": [
+        {
+          "id": "4924a4d3",
+          "depth": 0,
+          "equations": [
+            "eq_unique_constraint_linear_s248_L0_B0_248"
+          ],
+          "thought_step": "Refine constraint via linear seed=248 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "constraint",
+          "score": 8.83
+        },
+        {
+          "id": "e4aadd0e",
+          "depth": 1,
+          "equations": [
+            "eq_unique_energy_consistency_s327_L1_B2_360"
+          ],
+          "thought_step": "Refine energy via consistency seed=327 level=1 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.79
+        },
+        {
+          "id": "6eaff807",
+          "depth": 2,
+          "equations": [
+            "eq_unique_momentum_quadratic_s383_L2_B0_397"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=383 level=2 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 8.75
+        },
+        {
+          "id": "778c472b",
+          "depth": 3,
+          "equations": [
+            "local_step_3 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: isolate the remaining unknown or boundary condition. Add or correct exactly one quantity, relation, approximation, or correction term, and leave",
+          "scheduler_action": "expanded",
+          "route_family": "momentum",
+          "score": 0.0
+        },
+        {
+          "id": "4bb57ec2",
+          "depth": 4,
+          "equations": [
+            "eq_unique_energy_consistency_s504_L4_B2_558"
+          ],
+          "thought_step": "Refine energy via consistency seed=504 level=4 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.67
+        },
+        {
+          "id": "848a3b9e",
+          "depth": 5,
+          "equations": [
+            "eq_unique_constraint_linear_s575_L5_B0_610"
+          ],
+          "thought_step": "Refine constraint via linear seed=575 level=5 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "constraint",
+          "score": 8.63
+        },
+        {
+          "id": "17e71374",
+          "depth": 6,
+          "equations": [
+            "local_step_6 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: extract one candidate answer expression. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all other p",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 0.0
+        },
+        {
+          "id": "d86b0cce",
+          "depth": 7,
+          "equations": [
+            "eq_unique_closure_stability_s774_L7_B2_849"
+          ],
+          "thought_step": "Refine closure via stability seed=774 level=7 branch=2",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.56
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 55,
+        "min": 0.0,
+        "max": 8.56,
+        "avg": 0.4655
+      }
+    },
+    {
+      "scenario": "unique_fanout_d7_b3",
+      "preset": "high",
+      "run_index": 5,
+      "session_id": "15f80b094b784ef9b99ce99dedbf3053",
+      "elapsed_sec": 8.949,
+      "total_nodes": 184,
+      "max_depth": 7,
+      "leaf_nodes": 123,
+      "frontier_final": 0,
+      "action_counts": {
+        "expanded": 64,
+        "merged-duplicate": 119,
+        "root": 1
+      },
+      "status_counts": {
+        "ACTIVE": 184
+      },
+      "route_family_counts": {
+        "closure": 15,
+        "constraint": 105,
+        "energy": 36,
+        "momentum": 28
+      },
+      "depth_histogram": {
+        "0": 1,
+        "1": 3,
+        "2": 9,
+        "3": 27,
+        "4": 12,
+        "5": 27,
+        "6": 45,
+        "7": 60
+      },
+      "merged_ratio": 0.6467,
+      "semantic_merge_ratio": 0.0,
+      "exact_merge_ratio": 0.6467,
+      "expansion_log_entries": 255,
+      "expansion_event_counts": {
+        "(none)": 61,
+        "sent-to-reflection": 194
+      },
+      "best_leaf_score": 8.67,
+      "best_leaf_path": [
+        {
+          "id": "1d3eab53",
+          "depth": 0,
+          "equations": [
+            "eq_unique_momentum_quadratic_s285_L0_B0_285"
+          ],
+          "thought_step": "Refine momentum via quadratic seed=285 level=0 branch=0",
+          "scheduler_action": "root",
+          "route_family": "momentum",
+          "score": 8.77
+        },
+        {
+          "id": "0f6595c5",
+          "depth": 1,
+          "equations": [
+            "eq_unique_closure_stability_s302_L1_B0_309"
+          ],
+          "thought_step": "Refine closure via stability seed=302 level=1 branch=0",
+          "scheduler_action": "expanded",
+          "route_family": "closure",
+          "score": 8.79
+        },
+        {
+          "id": "cea9863a",
+          "depth": 2,
+          "equations": [
+            "local_step_2 = pending"
+          ],
+          "thought_step": "Refine only the current subproblem: express the target quantity in known variables. Add or correct exactly one quantity, relation, approximation, or correction term, and leave all ",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 0.0
+        },
+        {
+          "id": "c15dd381",
+          "depth": 3,
+          "equations": [
+            "eq_unique_energy_consistency_s382_L3_B1_416"
+          ],
+          "thought_step": "Refine energy via consistency seed=382 level=3 branch=1",
+          "scheduler_action": "expanded",
+          "route_family": "energy",
+          "score": 8.71
+        },
+        {
+          "id": "e50126e1",
+          "depth": 4,
+          "equations": [
+            "eq_unique_closure_stability_s431_L4_B0_459"
+          ],
+          "thought_step": "Refine closure via stability seed=431 level=4 branch=0",
+          "scheduler_action": "merged-duplicate",
+          "route_family": "closure",
+          "score": 8.67
+        }
+      ],
+      "leaf_score_stats": {
+        "count": 123,
+        "min": 0.0,
+        "max": 8.67,
+        "avg": 2.0949
+      }
+    }
+  ]
+}

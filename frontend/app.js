@@ -1,9 +1,10 @@
 const STORAGE_KEY = "tot-terminal-ui-v1";
-const STORAGE_VERSION = 16;
+const STORAGE_VERSION = 21;
 const DEFAULT_TIMEOUT_SECONDS = 600;
-const DEFAULT_ALLOW_LIVE_MODEL_FALLBACK = true;
-const DEFAULT_PREFER_LOCAL_FALLBACK = false;
+const DEFAULT_DEPTH_PRESET = "medium";
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
+const BUSY_REFRESH_INTERVAL_MS = 750;
+const STABLE_IDLE_POLLS_BEFORE_AUTO_PAUSE = 3;
 const RESULT_CANDIDATE_LIMIT = 6;
 const RESULT_ANSWER_KEYS = [
   "final_answer",
@@ -22,6 +23,18 @@ const RESULT_ANSWER_KEYS = [
   "steady_state",
   "output",
 ];
+const RESULT_META_EQUATION_PREFIXES = ["step_focus(", "refine(", "route(", "guidance(", "task("];
+const RESULT_META_TEXT_PATTERNS = [
+  /\bidentify governing relation\b/i,
+  /\bchoose one active correction or closure\b/i,
+  /\bexpress the target quantity in known variables\b/i,
+  /\bisolate the remaining unknown or boundary condition\b/i,
+  /\broute-local planning claim\b/i,
+  /\brefine only the current subproblem\b/i,
+  /\bselect\s+.+\s+route\b/i,
+  /\bcurrent child branch\b/i,
+];
+const NO_CONCRETE_FINAL_ANSWER_TEXT = "No concrete final answer extracted from this branch yet.";
 const DEFAULT_PLANNING_MODEL = "qwen3.5-9b-mlx";
 const DEFAULT_MODELING_MODEL = "qwen3.5-9b-mlx";
 const DEFAULT_REVIEW_MODEL = "qwen3.5-9b-mlx";
@@ -32,14 +45,85 @@ const LEGACY_MODELING_DEFAULTS = ["openai/gpt-oss-120b", "qwen3.6-35b-a3b-ud-mlx
 const LEGACY_REVIEW_DEFAULTS = ["qwen/qwen3-4b-2507", "qwen3.6-35b-a3b-ud-mlx"];
 const LEGACY_NON_TERMINAL_EVALUATION_DEFAULTS = ["qwen2.5-0.5b-instruct-mlx", "qwen/qwen3-1.7b"];
 
-const RECOMMENDED_MODEL_PRESET = {
+const BASE_MODEL_PRESET = {
   planningModel: DEFAULT_PLANNING_MODEL,
   modelingModel: DEFAULT_MODELING_MODEL,
   reviewModel: DEFAULT_REVIEW_MODEL,
   nonTerminalEvaluationModel: DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
-  timeoutSeconds: "600",
-  allowLiveModelFallback: DEFAULT_ALLOW_LIVE_MODEL_FALLBACK,
-  preferLocalFallback: DEFAULT_PREFER_LOCAL_FALLBACK,
+};
+
+const DEPTH_PRESET_PROFILES = {
+  low: {
+    key: "low",
+    label: "LOW DEPTH",
+    timeoutSeconds: "120",
+    stepLabel: "5-step decomposition",
+    divergenceLabel: "tight divergence",
+    description: "short runtime, live-only, coarse steps, narrow branching",
+    scheduler: {
+      depth_preset: "low",
+      max_reflections: 1,
+      max_tree_depth: 5,
+      max_frontier_size: 6,
+      max_children_per_expansion: 2,
+      max_live_children_per_batch: 2,
+      use_local_root_proposal: true,
+      use_local_root_evaluation: true,
+      use_local_child_proposal: true,
+      use_local_child_evaluation: true,
+      max_frontier_per_diversity_key: 1,
+      children_key: "children",
+    },
+  },
+  medium: {
+    key: "medium",
+    label: "MEDIUM DEPTH",
+    timeoutSeconds: "600",
+    stepLabel: "8-step decomposition",
+    divergenceLabel: "balanced divergence",
+    description: "live-only, balanced steps, balanced branching",
+    scheduler: {
+      depth_preset: "medium",
+      max_reflections: 2,
+      max_tree_depth: 8,
+      max_frontier_size: 16,
+      max_children_per_expansion: 3,
+      max_live_children_per_batch: 2,
+      use_local_root_proposal: true,
+      use_local_root_evaluation: true,
+      use_local_child_proposal: true,
+      use_local_child_evaluation: true,
+      max_frontier_per_diversity_key: 4,
+      children_key: "children",
+    },
+  },
+  high: {
+    key: "high",
+    label: "HIGH DEPTH",
+    timeoutSeconds: "1200",
+    stepLabel: "10-step decomposition",
+    divergenceLabel: "broader search, capped child batches",
+    description: "long runtime, live-only, finer steps, wider root branching",
+    scheduler: {
+      depth_preset: "high",
+      max_reflections: 3,
+      max_tree_depth: 12,
+      max_frontier_size: 24,
+      max_children_per_expansion: 4,
+      max_live_children_per_batch: 2,
+      use_local_root_proposal: true,
+      use_local_root_evaluation: true,
+      use_local_child_proposal: true,
+      use_local_child_evaluation: true,
+      max_frontier_per_diversity_key: 6,
+      children_key: "children",
+    },
+  },
+};
+
+const RECOMMENDED_MODEL_PRESET = {
+  ...BASE_MODEL_PRESET,
+  ...DEPTH_PRESET_PROFILES[DEFAULT_DEPTH_PRESET],
 };
 
 const FALLBACK_DEFAULT_PROBLEM_CONTEXT = {
@@ -56,10 +140,16 @@ const FALLBACK_DEFAULT_PROBLEM_CONTEXT = {
 };
 
 const DEFAULT_SCHEDULER_CONFIG = {
+  depth_preset: DEFAULT_DEPTH_PRESET,
   max_reflections: 2,
   max_tree_depth: 8,
   max_frontier_size: 16,
-  max_children_per_expansion: 6,
+  max_children_per_expansion: 3,
+  max_live_children_per_batch: 2,
+  use_local_root_proposal: true,
+  use_local_root_evaluation: true,
+  use_local_child_proposal: true,
+  use_local_child_evaluation: true,
   max_frontier_per_diversity_key: 4,
   children_key: "children",
 };
@@ -77,6 +167,7 @@ const uiState = {
   pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
   pollTimer: null,
   busyRefreshTimer: null,
+  stableIdlePollCount: 0,
   requestInFlight: false,
   revealSelection: false,
   statusMessage: "SYSTEM READY // no session attached",
@@ -114,15 +205,16 @@ const dom = {
   steerPromptInput: document.getElementById("steerPromptInput"),
   deleteNodeButton: document.getElementById("deleteNodeButton"),
   deleteSteerRunButton: document.getElementById("deleteSteerRunButton"),
-  applyRecommendedPresetButton: document.getElementById("applyRecommendedPresetButton"),
+  applyLowDepthPresetButton: document.getElementById("applyLowDepthPresetButton"),
+  applyMediumDepthPresetButton: document.getElementById("applyMediumDepthPresetButton"),
+  applyHighDepthPresetButton: document.getElementById("applyHighDepthPresetButton"),
+  depthPresetSummary: document.getElementById("depthPresetSummary"),
   baseUrlInput: document.getElementById("baseUrlInput"),
   planningModelInput: document.getElementById("planningModelInput"),
   modelingModelInput: document.getElementById("modelingModelInput"),
   reviewModelInput: document.getElementById("reviewModelInput"),
   nonTerminalEvaluationModelInput: document.getElementById("nonTerminalEvaluationModelInput"),
   timeoutInput: document.getElementById("timeoutInput"),
-  allowLiveModelFallbackToggle: document.getElementById("allowLiveModelFallbackToggle"),
-  preferLocalFallbackToggle: document.getElementById("preferLocalFallbackToggle"),
   problemContextInput: document.getElementById("problemContextInput"),
   schedulerConfigInput: document.getElementById("schedulerConfigInput"),
   treeStats: document.getElementById("treeStats"),
@@ -133,7 +225,6 @@ const dom = {
   bestResultScore: document.getElementById("bestResultScore"),
   bestResultMeta: document.getElementById("bestResultMeta"),
   bestResultFormula: document.getElementById("bestResultFormula"),
-  bestResultThought: document.getElementById("bestResultThought"),
   candidateResults: document.getElementById("candidateResults"),
   treeViewport: document.getElementById("treeViewport"),
   treeLines: document.getElementById("treeLines"),
@@ -148,7 +239,7 @@ boot().catch((error) => {
 });
 
 async function boot() {
-  await applyDefaultDrafts();
+  const defaultDrafts = await applyDefaultDrafts();
   restoreDraft();
   wireEvents();
   pushStatusLog(
@@ -157,6 +248,13 @@ async function boot() {
     "idle",
   );
   render();
+
+  if (defaultDrafts.warning) {
+    setStatus("Backend defaults endpoint unavailable. Using built-in drafts.", "warn", { record: false });
+    setActionFeedback("Backend defaults unavailable.", defaultDrafts.warning, "warn", { record: false });
+    pushStatusLog("Backend defaults unavailable.", defaultDrafts.warning, "warn");
+    render();
+  }
 
   if (dom.sessionIdInput.value.trim()) {
     await attachSession({ silent: true });
@@ -185,6 +283,7 @@ async function applyDefaultDrafts() {
   if (!dom.schedulerConfigInput.value.trim()) {
     dom.schedulerConfigInput.value = JSON.stringify(defaults.scheduler, null, 2);
   }
+  return defaults;
 }
 
 async function loadDefaultDrafts() {
@@ -192,10 +291,16 @@ async function loadDefaultDrafts() {
     problem_context: FALLBACK_DEFAULT_PROBLEM_CONTEXT,
     scheduler: DEFAULT_SCHEDULER_CONFIG,
   };
+  const buildFallbackResponse = (reason) => ({
+    ...fallback,
+    warning: `${reason} Open 127.0.0.1:8000 if this page is not serving /api/tot.`,
+  });
   try {
     const response = await fetch("/api/tot/defaults");
     if (!response.ok) {
-      return fallback;
+      return buildFallbackResponse(
+        `GET /api/tot/defaults returned HTTP ${response.status}. Using built-in defaults.`
+      );
     }
     const payload = await response.json();
     return {
@@ -205,9 +310,13 @@ async function loadDefaultDrafts() {
       scheduler: isPlainObject(payload.scheduler)
         ? payload.scheduler
         : fallback.scheduler,
+      warning: "",
     };
-  } catch (_error) {
-    return fallback;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return buildFallbackResponse(
+      `Failed to load /api/tot/defaults: ${reason}. Using built-in defaults.`
+    );
   }
 }
 
@@ -225,38 +334,125 @@ function writeModelInput(element, value, fallback) {
   element.value = sanitizeModelName(value, fallback);
 }
 
-function applyRecommendedModelPreset() {
+function normalizeDepthPreset(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "low" || normalized === "medium" || normalized === "high") {
+    return normalized;
+  }
+  return DEFAULT_DEPTH_PRESET;
+}
+
+function getDepthPresetProfile(presetName) {
+  return DEPTH_PRESET_PROFILES[normalizeDepthPreset(presetName)] || DEPTH_PRESET_PROFILES[DEFAULT_DEPTH_PRESET];
+}
+
+function readJsonObjectOrFallback(rawValue, fallbackValue) {
+  try {
+    const parsed = parseJsonText(rawValue, "JSON payload", fallbackValue);
+    if (isPlainObject(parsed)) {
+      return parsed;
+    }
+  } catch (_error) {
+    return { ...fallbackValue };
+  }
+  return { ...fallbackValue };
+}
+
+function describeFallbackPolicy(_profile) {
+  return "live-only, no fallback";
+}
+
+function inferSelectedDepthPreset() {
+  const scheduler = readJsonObjectOrFallback(dom.schedulerConfigInput.value, DEFAULT_SCHEDULER_CONFIG);
+  if (typeof scheduler.depth_preset === "string" && scheduler.depth_preset.trim()) {
+    return normalizeDepthPreset(scheduler.depth_preset);
+  }
+  const problemContext = readJsonObjectOrFallback(dom.problemContextInput.value, FALLBACK_DEFAULT_PROBLEM_CONTEXT);
+  if (typeof problemContext.reasoning_depth_preset === "string" && problemContext.reasoning_depth_preset.trim()) {
+    return normalizeDepthPreset(problemContext.reasoning_depth_preset);
+  }
+  return DEFAULT_DEPTH_PRESET;
+}
+
+function renderDepthPresetControls() {
+  const selectedPreset = inferSelectedDepthPreset();
+  const profile = getDepthPresetProfile(selectedPreset);
+  const buttonMap = {
+    low: dom.applyLowDepthPresetButton,
+    medium: dom.applyMediumDepthPresetButton,
+    high: dom.applyHighDepthPresetButton,
+  };
+
+  Object.entries(buttonMap).forEach(([presetKey, button]) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const isActive = presetKey === selectedPreset;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+
+  if (dom.depthPresetSummary) {
+    dom.depthPresetSummary.textContent = `${profile.label}: timeout ${profile.timeoutSeconds}s | ${describeFallbackPolicy(profile)} | ${profile.stepLabel} | ${profile.divergenceLabel}.`;
+  }
+}
+
+function applyDepthPreset(presetName) {
+  const profile = getDepthPresetProfile(presetName);
+
   writeModelInput(
     dom.planningModelInput,
-    RECOMMENDED_MODEL_PRESET.planningModel,
+    BASE_MODEL_PRESET.planningModel,
     DEFAULT_PLANNING_MODEL,
   );
   writeModelInput(
     dom.modelingModelInput,
-    RECOMMENDED_MODEL_PRESET.modelingModel,
+    BASE_MODEL_PRESET.modelingModel,
     DEFAULT_MODELING_MODEL,
   );
   writeModelInput(
     dom.reviewModelInput,
-    RECOMMENDED_MODEL_PRESET.reviewModel,
+    BASE_MODEL_PRESET.reviewModel,
     DEFAULT_REVIEW_MODEL,
   );
   writeModelInput(
     dom.nonTerminalEvaluationModelInput,
-    RECOMMENDED_MODEL_PRESET.nonTerminalEvaluationModel,
+    BASE_MODEL_PRESET.nonTerminalEvaluationModel,
     DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
   );
+
   if (dom.timeoutInput instanceof HTMLInputElement) {
-    dom.timeoutInput.value = RECOMMENDED_MODEL_PRESET.timeoutSeconds;
+    dom.timeoutInput.value = profile.timeoutSeconds;
   }
-  if (dom.allowLiveModelFallbackToggle instanceof HTMLInputElement) {
-    dom.allowLiveModelFallbackToggle.checked = RECOMMENDED_MODEL_PRESET.allowLiveModelFallback;
-  }
-  if (dom.preferLocalFallbackToggle instanceof HTMLInputElement) {
-    dom.preferLocalFallbackToggle.checked = RECOMMENDED_MODEL_PRESET.preferLocalFallback;
-  }
+
+  const scheduler = readJsonObjectOrFallback(dom.schedulerConfigInput.value, DEFAULT_SCHEDULER_CONFIG);
+  dom.schedulerConfigInput.value = JSON.stringify(
+    {
+      ...scheduler,
+      ...profile.scheduler,
+      depth_preset: profile.key,
+    },
+    null,
+    2,
+  );
+
+  const problemContext = readJsonObjectOrFallback(dom.problemContextInput.value, FALLBACK_DEFAULT_PROBLEM_CONTEXT);
+  dom.problemContextInput.value = JSON.stringify(
+    {
+      ...problemContext,
+      reasoning_depth_preset: profile.key,
+    },
+    null,
+    2,
+  );
+
   persistDraft();
-  setStatus("Recommended preset applied.", "ok");
+  renderDepthPresetControls();
+  setStatus(`${profile.label} preset applied.`, "ok");
+}
+
+function applyRecommendedModelPreset() {
+  applyDepthPreset(RECOMMENDED_MODEL_PRESET.key);
 }
 
 function restoreDraft() {
@@ -295,16 +491,6 @@ function restoreDraft() {
     isLegacyDraft ? migrateLegacyTimeoutSeconds(stored.timeout) : stored.timeout
   );
   dom.timeoutInput.value = String(restoredTimeout);
-  if (dom.allowLiveModelFallbackToggle instanceof HTMLInputElement) {
-    dom.allowLiveModelFallbackToggle.checked = typeof stored.allowLiveModelFallback === "boolean"
-      ? stored.allowLiveModelFallback
-      : DEFAULT_ALLOW_LIVE_MODEL_FALLBACK;
-  }
-  if (dom.preferLocalFallbackToggle instanceof HTMLInputElement) {
-    dom.preferLocalFallbackToggle.checked = typeof stored.preferLocalFallback === "boolean"
-      ? stored.preferLocalFallback
-      : DEFAULT_PREFER_LOCAL_FALLBACK;
-  }
 
   writeModelInput(
     dom.planningModelInput,
@@ -371,8 +557,6 @@ function persistDraft() {
       DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
     ),
     timeout: dom.timeoutInput.value.trim(),
-    allowLiveModelFallback: Boolean(dom.allowLiveModelFallbackToggle && dom.allowLiveModelFallbackToggle.checked),
-    preferLocalFallback: Boolean(dom.preferLocalFallbackToggle && dom.preferLocalFallbackToggle.checked),
     deleteReason: dom.deleteReasonInput.value,
     steerPrompt: dom.steerPromptInput.value,
     searchQuery: dom.searchInput.value,
@@ -397,11 +581,39 @@ function migrateLegacySchedulerConfig(rawValue) {
     if (parsed.max_tree_depth === undefined) {
       parsed.max_tree_depth = DEFAULT_SCHEDULER_CONFIG.max_tree_depth;
     }
+    if (!parsed.depth_preset) {
+      parsed.depth_preset = DEFAULT_SCHEDULER_CONFIG.depth_preset;
+    } else {
+      parsed.depth_preset = normalizeDepthPreset(parsed.depth_preset);
+    }
+    const presetProfile = DEPTH_PRESET_PROFILES[parsed.depth_preset] || DEPTH_PRESET_PROFILES[DEFAULT_DEPTH_PRESET];
     if (parsed.max_frontier_size === undefined || parsed.max_frontier_size === 8) {
       parsed.max_frontier_size = DEFAULT_SCHEDULER_CONFIG.max_frontier_size;
     }
-    if (parsed.max_children_per_expansion === undefined || [3, 4].includes(parsed.max_children_per_expansion)) {
-      parsed.max_children_per_expansion = DEFAULT_SCHEDULER_CONFIG.max_children_per_expansion;
+    const legacyPresetChildSurface = {
+      medium: 6,
+      high: 8,
+    };
+    if (
+      parsed.max_children_per_expansion === undefined
+      || parsed.max_children_per_expansion === legacyPresetChildSurface[parsed.depth_preset]
+    ) {
+      parsed.max_children_per_expansion = presetProfile.scheduler.max_children_per_expansion;
+    }
+    if (parsed.max_live_children_per_batch === undefined) {
+      parsed.max_live_children_per_batch = presetProfile.scheduler.max_live_children_per_batch;
+    }
+    if (parsed.use_local_root_proposal === undefined) {
+      parsed.use_local_root_proposal = presetProfile.scheduler.use_local_root_proposal;
+    }
+    if (parsed.use_local_root_evaluation === undefined) {
+      parsed.use_local_root_evaluation = presetProfile.scheduler.use_local_root_evaluation;
+    }
+    if (parsed.use_local_child_proposal === undefined) {
+      parsed.use_local_child_proposal = presetProfile.scheduler.use_local_child_proposal;
+    }
+    if (parsed.use_local_child_evaluation === undefined) {
+      parsed.use_local_child_evaluation = presetProfile.scheduler.use_local_child_evaluation;
     }
     if (parsed.max_frontier_per_diversity_key === undefined || parsed.max_frontier_per_diversity_key === 2) {
       parsed.max_frontier_per_diversity_key = DEFAULT_SCHEDULER_CONFIG.max_frontier_per_diversity_key;
@@ -449,11 +661,17 @@ function wireEvents() {
   dom.deleteSteerRunButton.addEventListener("click", () => {
     runUiAction(() => deleteSelectedNode({ steer: true, runAfterDelete: true }));
   });
-  if (dom.applyRecommendedPresetButton instanceof HTMLButtonElement) {
-    dom.applyRecommendedPresetButton.addEventListener("click", () => {
-      applyRecommendedModelPreset();
-    });
-  }
+  [
+    [dom.applyLowDepthPresetButton, "low"],
+    [dom.applyMediumDepthPresetButton, "medium"],
+    [dom.applyHighDepthPresetButton, "high"],
+  ].forEach(([button, presetName]) => {
+    if (button instanceof HTMLButtonElement) {
+      button.addEventListener("click", () => {
+        applyDepthPreset(presetName);
+      });
+    }
+  });
 
   dom.sessionIdInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -498,6 +716,7 @@ function wireEvents() {
   });
 
   [
+    dom.sessionIdInput,
     dom.problemPromptInput,
     dom.problemContextInput,
     dom.schedulerConfigInput,
@@ -507,9 +726,8 @@ function wireEvents() {
     dom.reviewModelInput,
     dom.nonTerminalEvaluationModelInput,
     dom.timeoutInput,
-    dom.allowLiveModelFallbackToggle,
-    dom.preferLocalFallbackToggle,
     dom.deleteReasonInput,
+    dom.steerPromptInput,
   ].filter(Boolean).forEach((element) => {
     const eventName = element instanceof HTMLInputElement && element.type === "checkbox" ? "change" : "input";
     element.addEventListener(eventName, persistDraft);
@@ -704,8 +922,10 @@ function restartPolling() {
     window.clearInterval(uiState.pollTimer);
     uiState.pollTimer = null;
   }
+  uiState.stableIdlePollCount = 0;
 
   if (!uiState.pollingEnabled) {
+    clearBusyRefresh();
     return;
   }
 
@@ -736,17 +956,19 @@ function clearBusyRefresh() {
 
 function scheduleBusyRefresh() {
   clearBusyRefresh();
-  if (!uiState.sessionId) {
+  // The fast busy chain is an accelerated form of auto refresh; it must stop
+  // when the user turns auto refresh off.
+  if (!uiState.sessionId || !uiState.pollingEnabled) {
     return;
   }
 
   uiState.busyRefreshTimer = window.setTimeout(() => {
     uiState.busyRefreshTimer = null;
-    if (!uiState.sessionId || uiState.requestInFlight) {
+    if (!uiState.sessionId || uiState.requestInFlight || !uiState.pollingEnabled) {
       return;
     }
     refreshSession({ silent: true });
-  }, 750);
+  }, BUSY_REFRESH_INTERVAL_MS);
 }
 
 function setStatus(message, tone = "idle", options = {}) {
@@ -846,6 +1068,7 @@ function render() {
   renderActionFeedback();
   renderStatusLog();
   renderButtons();
+  renderDepthPresetControls();
   renderResultsBoard();
   renderTree();
   renderDetailPane();
@@ -896,6 +1119,47 @@ function recomputeDerivedState() {
 function getRunState(snapshot) {
   const runState = snapshot && isPlainObject(snapshot.run_state) ? snapshot.run_state : {};
   return isPlainObject(runState) ? runState : {};
+}
+
+function getInFlightExpansion(snapshot) {
+  const inFlight = getRunState(snapshot).in_flight_expansion;
+  return isPlainObject(inFlight) ? inFlight : null;
+}
+
+function getInFlightExpansionMetrics(snapshot) {
+  const inFlight = getInFlightExpansion(snapshot);
+  if (!inFlight) {
+    return null;
+  }
+  const parentId = String(inFlight.parent_id || "").trim();
+  const parentDepth = Number.isFinite(Number(inFlight.parent_depth))
+    ? Number(inFlight.parent_depth)
+    : null;
+  const expectedChildCount = Number.isFinite(Number(inFlight.expected_child_count))
+    ? Number(inFlight.expected_child_count)
+    : 0;
+  const builtChildCount = Number.isFinite(Number(inFlight.built_child_count))
+    ? Number(inFlight.built_child_count)
+    : 0;
+  return {
+    parentId,
+    parentDepth,
+    expectedChildCount,
+    builtChildCount,
+  };
+}
+
+function formatInFlightExpansion(snapshot, { compact = false } = {}) {
+  const metrics = getInFlightExpansionMetrics(snapshot);
+  if (!metrics) {
+    return "";
+  }
+  const parentHint = metrics.parentId ? metrics.parentId.slice(0, 8) : "pending";
+  if (compact) {
+    return `in-flight ${metrics.builtChildCount}/${metrics.expectedChildCount}`;
+  }
+  const depthLabel = metrics.parentDepth === null ? "" : ` at depth ${metrics.parentDepth}`;
+  return `${metrics.builtChildCount}/${metrics.expectedChildCount} child nodes built for ${parentHint}${depthLabel}`;
 }
 
 function isSessionBusy(snapshot) {
@@ -1223,6 +1487,9 @@ function renderButtons() {
     dom.collapseAllButton,
     dom.deleteNodeButton,
     dom.deleteSteerRunButton,
+    dom.applyLowDepthPresetButton,
+    dom.applyMediumDepthPresetButton,
+    dom.applyHighDepthPresetButton,
   ].forEach((button) => {
     button.disabled = uiState.requestInFlight;
   });
@@ -1248,6 +1515,8 @@ function renderMeta() {
     ? uiState.snapshot.frontier
     : [];
   const runState = getRunState(uiState.snapshot);
+  const inFlightLabel = formatInFlightExpansion(uiState.snapshot, { compact: true });
+  const inFlightSuffix = inFlightLabel ? ` | ${inFlightLabel}` : "";
 
   if (!model.root) {
     dom.treeStats.textContent = "no tree loaded";
@@ -1258,14 +1527,14 @@ function renderMeta() {
 
   if (model.root.known_vars && model.root.known_vars.synthetic_placeholder_root) {
     dom.treeStats.textContent =
-      `root pending | status ${String(runState.status || "idle")} | phase ${String(runState.phase || "created")} | frontier ${frontier.length}`;
+      `root pending | status ${String(runState.status || "idle")} | phase ${String(runState.phase || "created")} | frontier ${frontier.length}${inFlightSuffix}`;
     dom.selectionStats.textContent = "selection: pending root";
     dom.searchMeta.textContent = uiState.searchQuery ? "0 matches" : "0 matches";
     return;
   }
 
   dom.treeStats.textContent =
-    `nodes ${model.allNodes.length} | active ${model.activeCount} | pruned ${model.prunedCount} | leaves ${model.leafCount} | depth ${model.maxDepth} | frontier ${frontier.length}`;
+    `nodes ${model.allNodes.length} | active ${model.activeCount} | pruned ${model.prunedCount} | leaves ${model.leafCount} | depth ${model.maxDepth} | frontier ${frontier.length}${inFlightSuffix}`;
 
   const selectedNode = getSelectedNode();
   if (selectedNode) {
@@ -1333,9 +1602,6 @@ function renderResultsBoard() {
     dom.bestResultScore.textContent = "-";
     dom.bestResultMeta.textContent = "no result";
     dom.bestResultFormula.textContent = "No formula yet.";
-    dom.bestResultThought.textContent = uiState.sessionId
-      ? "Waiting for scored leaf nodes."
-      : "Run a session to populate scored leaves.";
     const empty = document.createElement("div");
     empty.className = "candidate-empty";
     empty.textContent = "No candidates.";
@@ -1345,13 +1611,12 @@ function renderResultsBoard() {
 
   const best = board.best;
   dom.resultSummary.textContent =
-    `${board.label} ${board.scoredCount} | best ${best.node.id} | score ${formatScore(best.node.score)} | ${runLabel}`;
+    `${board.label} ${board.scoredCount} | best score ${formatScore(best.node.score)} | ${runLabel}`;
   dom.bestResultCard.disabled = false;
   dom.bestResultCard.dataset.nodeId = best.node.id;
   dom.bestResultScore.textContent = formatScore(best.node.score);
   dom.bestResultMeta.textContent = buildResultMeta(best);
   dom.bestResultFormula.textContent = buildNodeAnswerText(best.node, { maxLength: 1_400 });
-  dom.bestResultThought.textContent = summarizeResultThought(best.node);
 
   const fragment = document.createDocumentFragment();
   board.candidates.forEach((entry, index) => {
@@ -1375,17 +1640,13 @@ function renderResultsBoard() {
 
     const meta = document.createElement("span");
     meta.className = "candidate-meta";
-    meta.textContent = `${entry.node.id} | score ${formatScore(entry.node.score)} | d${entry.depth}`;
+    meta.textContent = `score ${formatScore(entry.node.score)} | depth ${entry.depth}`;
 
     const formula = document.createElement("span");
     formula.className = "candidate-formula";
     formula.textContent = buildNodeAnswerText(entry.node, { maxLength: 260 });
 
-    const thought = document.createElement("span");
-    thought.className = "candidate-thought";
-    thought.textContent = summarizeResultThought(entry.node);
-
-    body.append(meta, formula, thought);
+    body.append(meta, formula);
     button.append(rank, body);
     fragment.append(button);
   });
@@ -1438,7 +1699,6 @@ function compareResultEntries(left, right) {
 function buildResultMeta(entry) {
   const node = entry.node;
   const parts = [
-    node.id,
     `depth ${entry.depth}`,
     shortStatus(displayResultState(node)),
   ];
@@ -1459,81 +1719,226 @@ function summarizeResultThought(node) {
 
 function buildNodeAnswerText(node, options = {}) {
   const maxLength = Number.isFinite(options.maxLength) ? Number(options.maxLength) : 1_000;
-  const equations = Array.isArray(node && node.equations)
-    ? node.equations.map((equation) => formatInlineValue(equation)).filter(Boolean)
-    : [];
-  if (equations.length) {
-    return trimText(equations.join("\n"), maxLength);
+  const bestCandidate = selectBestAnswerCandidate(collectNodeAnswerCandidates(node));
+  if (bestCandidate && isConcreteAnswerCandidate(bestCandidate)) {
+    return trimText(bestCandidate.text, maxLength);
   }
-
-  const knownVarsAnswer = extractAnswerText(node && node.known_vars);
-  if (knownVarsAnswer) {
-    return trimText(knownVarsAnswer, maxLength);
-  }
-
-  const quantitiesAnswer = extractAnswerText(node && node.quantities);
-  if (quantitiesAnswer) {
-    return trimText(quantitiesAnswer, maxLength);
-  }
-
-  const quantitiesSummary = formatStructuredAnswer(node && node.quantities);
-  if (quantitiesSummary) {
-    return trimText(quantitiesSummary, maxLength);
-  }
-
-  const boundaryAnswer = extractAnswerText(node && node.boundary_conditions);
-  if (boundaryAnswer) {
-    return trimText(boundaryAnswer, maxLength);
-  }
-
-  const boundarySummary = formatStructuredAnswer(node && node.boundary_conditions);
-  if (boundarySummary) {
-    return trimText(boundarySummary, maxLength);
-  }
-
-  return trimText(String(node && node.thought_step ? node.thought_step : "No final answer or formula recorded on this node."), maxLength);
+  return trimText(NO_CONCRETE_FINAL_ANSWER_TEXT, maxLength);
 }
 
-function extractAnswerText(value, depth = 0) {
+function collectNodeAnswerCandidates(node) {
+  const candidates = [];
+  const equationLines = collectConcreteEquationLines(node && node.equations);
+  if (equationLines.length) {
+    pushAnswerCandidate(candidates, equationLines.join("\n"), { source: "equations" });
+  }
+
+  collectAnswerCandidates(candidates, node && node.known_vars, { source: "known_vars" });
+  collectAnswerCandidates(candidates, node && node.quantities, { source: "quantities" });
+  pushAnswerCandidate(candidates, formatStructuredAnswer(node && node.quantities), {
+    source: "quantities-summary",
+  });
+  collectAnswerCandidates(candidates, node && node.boundary_conditions, { source: "boundary_conditions" });
+  pushAnswerCandidate(candidates, formatStructuredAnswer(node && node.boundary_conditions), {
+    source: "boundary-summary",
+  });
+  pushAnswerCandidate(candidates, formatInlineValue(node && node.thought_step), { source: "thought_step" });
+
+  return candidates;
+}
+
+function collectAnswerCandidates(candidates, value, context = {}, depth = 0) {
   if (value === null || value === undefined || depth > 2) {
-    return "";
+    return;
   }
+
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return formatInlineValue(value);
+    if (context.key && isAnswerLikeKey(context.key)) {
+      pushAnswerCandidate(candidates, formatInlineValue(value), context);
+    }
+    return;
   }
+
   if (Array.isArray(value)) {
-    return value.map((entry) => extractAnswerText(entry, depth + 1)).filter(Boolean).join("\n");
+    value.forEach((entry, index) => {
+      collectAnswerCandidates(candidates, entry, { ...context, key: context.key || String(index) }, depth + 1);
+    });
+    return;
   }
+
   if (!isPlainObject(value)) {
-    return "";
+    return;
   }
 
   for (const key of RESULT_ANSWER_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(value, key)) {
-      const directValue = value[key];
-      const directText = typeof directValue === "object" && directValue !== null
-        ? formatStructuredAnswer(directValue)
-        : formatInlineValue(directValue);
-      if (directText) {
-        return directText;
-      }
+    if (!Object.prototype.hasOwnProperty.call(value, key)) {
+      continue;
     }
+    const directValue = value[key];
+    const directText = typeof directValue === "object" && directValue !== null
+      ? formatStructuredAnswer(directValue)
+      : formatInlineValue(directValue);
+    pushAnswerCandidate(candidates, directText, { ...context, key, direct: true });
   }
 
   for (const [key, entryValue] of Object.entries(value)) {
     if (isNoisyResultKey(key)) {
       continue;
     }
-    if (!entryValue || typeof entryValue !== "object") {
+    if (typeof entryValue === "string" || typeof entryValue === "number" || typeof entryValue === "boolean") {
+      if (isAnswerLikeKey(key)) {
+        pushAnswerCandidate(candidates, formatInlineValue(entryValue), { ...context, key });
+      }
       continue;
     }
-    const nestedText = extractAnswerText(entryValue, depth + 1);
-    if (nestedText) {
-      return nestedText;
+    collectAnswerCandidates(candidates, entryValue, { ...context, key }, depth + 1);
+  }
+}
+
+function pushAnswerCandidate(candidates, text, context = {}) {
+  const normalizedText = normalizeAnswerCandidateText(text);
+  if (!normalizedText) {
+    return;
+  }
+  candidates.push({
+    text: normalizedText,
+    score: scoreAnswerCandidate(normalizedText, context),
+    source: context.source || "unknown",
+    key: context.key || "",
+  });
+}
+
+function selectBestAnswerCandidate(candidates) {
+  if (!Array.isArray(candidates) || !candidates.length) {
+    return null;
+  }
+  return candidates
+    .slice()
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      if (left.text.length !== right.text.length) {
+        return left.text.length - right.text.length;
+      }
+      return left.text.localeCompare(right.text);
+    })[0] || null;
+}
+
+function isConcreteAnswerCandidate(candidate) {
+  return Boolean(candidate && candidate.text && candidate.score >= 30);
+}
+
+function normalizeAnswerCandidateText(text) {
+  const normalized = String(text || "")
+    .split(/\n+/)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean)
+    .join("\n");
+  return normalized;
+}
+
+function collectConcreteEquationLines(equations) {
+  if (!Array.isArray(equations)) {
+    return [];
+  }
+  return equations
+    .map((equation) => normalizeAnswerCandidateText(formatInlineValue(equation)))
+    .filter(Boolean)
+    .filter((line) => !isMetaEquationText(line));
+}
+
+function isMetaEquationText(text) {
+  const normalized = String(text || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return RESULT_META_EQUATION_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+function isMetaAnswerText(text) {
+  const normalized = String(text || "").trim();
+  if (!normalized) {
+    return false;
+  }
+  const lines = normalized.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) {
+    return false;
+  }
+  return lines.every((line) => isMetaEquationText(line) || RESULT_META_TEXT_PATTERNS.some((pattern) => pattern.test(line)));
+}
+
+function isAnswerLikeKey(key) {
+  const normalized = String(key || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return RESULT_ANSWER_KEYS.includes(normalized)
+    || /answer|result|solution|output|fraction|probab|value|final|closed_form|steady_state/.test(normalized);
+}
+
+function scoreAnswerCandidate(text, context = {}) {
+  const normalized = normalizeAnswerCandidateText(text);
+  if (!normalized) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  let score = 0;
+  const source = String(context.source || "");
+  const key = String(context.key || "").trim().toLowerCase();
+
+  if (source === "equations") {
+    score += 70;
+  } else if (source === "known_vars") {
+    score += 56;
+  } else if (source === "quantities") {
+    score += 42;
+  } else if (source === "quantities-summary") {
+    score += 28;
+  } else if (source === "boundary_conditions") {
+    score += 34;
+  } else if (source === "boundary-summary") {
+    score += 22;
+  } else if (source === "thought_step") {
+    score -= 18;
+  }
+
+  if (key) {
+    const keyIndex = RESULT_ANSWER_KEYS.indexOf(key);
+    if (keyIndex >= 0) {
+      score += Math.max(10, 26 - keyIndex * 2);
+    } else if (isAnswerLikeKey(key)) {
+      score += 12;
     }
   }
 
-  return "";
+  if (/\b\d+\s*\/\s*\d+\b/.test(normalized)) {
+    score += 34;
+  }
+  if (/\b\d+(?:\.\d+)?\b/.test(normalized)) {
+    score += 14;
+  }
+  if (/[=≈≃<>≤≥]/.test(normalized)) {
+    score += 22;
+  }
+  if (/\b(?:probability|final answer|answer|result|therefore|equals|is)\b/i.test(normalized)) {
+    score += 10;
+  }
+  if (/\b(?:kg|m\/s|m\s*s\^-?1|m\/s\^2|n|j|pa|w|hz|rad\/s|s|k|c|v|a|ohm|t)\b/i.test(normalized)) {
+    score += 10;
+  }
+
+  const lines = normalized.split(/\n+/).filter(Boolean);
+  if (lines.length <= 3) {
+    score += 6;
+  }
+  score -= Math.min(24, Math.floor(normalized.length / 140));
+
+  if (isMetaAnswerText(normalized)) {
+    score -= 140;
+  }
+
+  return score;
 }
 
 function formatStructuredAnswer(value) {
@@ -1743,6 +2148,7 @@ function renderDetailPane() {
           ["Run phase", String(runState.phase || "-")],
           ["Problem context prepared", String(Boolean(runState.problem_context_prepared))],
           ["Auto run requested", String(Boolean(runState.auto_run_requested))],
+          ["In-flight expansion", formatInFlightExpansion(uiState.snapshot) || "-"],
           ["Last error", String(runState.last_error || "-")],
         ])
       )
@@ -1908,12 +2314,15 @@ function renderFrontier() {
   const frontier = Array.isArray(uiState.snapshot && uiState.snapshot.frontier)
     ? uiState.snapshot.frontier
     : [];
+  const inFlightDetail = formatInFlightExpansion(uiState.snapshot);
 
   if (frontier.length === 0) {
     dom.frontierList.innerHTML = "";
     const empty = document.createElement("div");
     empty.className = "meta-line";
-    empty.textContent = "frontier empty";
+    empty.textContent = inFlightDetail && isSessionBusy(uiState.snapshot)
+      ? `frontier temporarily empty | ${inFlightDetail}`
+      : "frontier empty";
     dom.frontierList.append(empty);
     return;
   }
@@ -2160,21 +2569,40 @@ async function refreshSession(options = {}) {
     const previousSnapshot = uiState.snapshot;
     const response = await apiRequest(`/api/tot/sessions/${encodeURIComponent(uiState.sessionId)}`);
     const refreshSummary = summarizeSessionAction("refresh", previousSnapshot, response.state);
+    const hasVisibleChange = hasVisibleMetricsChange(
+      getSnapshotMetrics(previousSnapshot),
+      getSnapshotMetrics(response.state)
+    );
+    const runState = getRunState(response.state);
+    const hasBackgroundWork = Boolean(
+      runState.auto_run_requested
+      || (runState.in_flight_expansion && typeof runState.in_flight_expansion === "object")
+    );
     const hasStableIdleSnapshot = Boolean(
       !isSessionBusy(response.state)
-      && !hasVisibleMetricsChange(
-        getSnapshotMetrics(previousSnapshot),
-        getSnapshotMetrics(response.state)
-      )
+      && !hasBackgroundWork
+      && !hasVisibleChange
+    );
+    const matchesCurrentFeedback = Boolean(
+      refreshSummary.title === uiState.lastActionTitle
+      && refreshSummary.detail === uiState.lastActionDetail
+      && (refreshSummary.tone || "ok") === uiState.lastActionTone
     );
     const preserveSilentFeedback = Boolean(
       options.silent
-      && hasStableIdleSnapshot
+      && (hasStableIdleSnapshot || (!hasVisibleChange && matchesCurrentFeedback))
     );
     if (options.silent && hasStableIdleSnapshot && uiState.pollingEnabled) {
-      uiState.pollingEnabled = false;
-      dom.pollingToggle.checked = false;
-      restartPolling();
+      // Pause auto refresh only after several genuinely idle polls; a session
+      // queued for an auto-run slot or between run slices must keep polling.
+      uiState.stableIdlePollCount += 1;
+      if (uiState.stableIdlePollCount >= STABLE_IDLE_POLLS_BEFORE_AUTO_PAUSE) {
+        uiState.pollingEnabled = false;
+        dom.pollingToggle.checked = false;
+        restartPolling();
+      }
+    } else {
+      uiState.stableIdlePollCount = 0;
     }
     applySessionState(
       response.session_id,
@@ -2191,6 +2619,7 @@ async function refreshSession(options = {}) {
             record: false,
           }
         : refreshSummary,
+      { preserveUpdatedAt: preserveSilentFeedback },
     );
   }, options);
 }
@@ -2245,6 +2674,15 @@ async function deleteSelectedNode(options = {}) {
     return;
   }
 
+  const confirmed = window.confirm(
+    shouldSteer
+      ? `Delete node ${selectedNode.id} and its subtree (after backend review), then steer from its parent?`
+      : `Delete node ${selectedNode.id} and its subtree (after backend review)?`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
   const requestLabel = shouldSteer
     ? `Deleting ${selectedNode.id}, applying steer prompt, then continuing...`
     : `Submitting delete review for ${selectedNode.id}...`;
@@ -2262,8 +2700,10 @@ async function deleteSelectedNode(options = {}) {
         },
       },
     );
-    uiState.selectedNodeId = selectedNode.parent_id;
-    uiState.revealSelection = true;
+    if (response.deleted) {
+      uiState.selectedNodeId = selectedNode.parent_id;
+      uiState.revealSelection = true;
+    }
     applySessionState(
       response.session_id,
       response.state,
@@ -2354,21 +2794,21 @@ function buildCreateSessionPayload() {
       DEFAULT_NON_TERMINAL_EVALUATION_MODEL,
     ),
     timeout: parsePositiveNumber(dom.timeoutInput.value, "timeout"),
-    allow_live_model_fallback: Boolean(
-      dom.allowLiveModelFallbackToggle && dom.allowLiveModelFallbackToggle.checked,
-    ),
-    prefer_local_fallback: Boolean(
-      dom.preferLocalFallbackToggle && dom.preferLocalFallbackToggle.checked,
-    ),
   };
+
+  const depthPreset = normalizeDepthPreset(scheduler.depth_preset);
 
   return {
     problem_context: {
       ...problemContext,
       problem_statement: problemStatement,
+      reasoning_depth_preset: depthPreset,
     },
     backend,
-    scheduler,
+    scheduler: {
+      ...scheduler,
+      depth_preset: depthPreset,
+    },
     run_on_create: true,
   };
 }
@@ -2421,10 +2861,12 @@ function migrateLegacyReviewModel(value) {
     : normalized;
 }
 
-function applySessionState(sessionId, snapshot, message, tone = "ok", actionFeedback = null) {
+function applySessionState(sessionId, snapshot, message, tone = "ok", actionFeedback = null, options = {}) {
   uiState.sessionId = String(sessionId || "");
   uiState.snapshot = snapshot || null;
-  uiState.lastUpdatedAt = new Date();
+  if (!options.preserveUpdatedAt) {
+    uiState.lastUpdatedAt = new Date();
+  }
   dom.sessionIdInput.value = uiState.sessionId;
   persistDraft();
   if (isSessionBusy(snapshot)) {
@@ -2691,6 +3133,7 @@ function getSnapshotMetrics(snapshot) {
     : 0;
   const allNodes = root ? flattenNodes(root) : [];
   const runState = getRunState(snapshot);
+  const inFlight = getInFlightExpansionMetrics(snapshot);
 
   return {
     rootId: root && root.id ? String(root.id) : "",
@@ -2701,6 +3144,9 @@ function getSnapshotMetrics(snapshot) {
     expansionsUsed,
     runStatus: String(runState.status || "idle"),
     runPhase: String(runState.phase || "created"),
+    inFlightParentId: inFlight ? inFlight.parentId : "",
+    inFlightBuiltChildCount: inFlight ? inFlight.builtChildCount : 0,
+    inFlightExpectedChildCount: inFlight ? inFlight.expectedChildCount : 0,
     lastEvent: expansionLog.length ? expansionLog[expansionLog.length - 1] : null,
   };
 }
@@ -2721,6 +3167,9 @@ function hasVisibleMetricsChange(previousMetrics, nextMetrics) {
     || deltas.expansions !== 0
     || previousMetrics.runStatus !== nextMetrics.runStatus
     || previousMetrics.runPhase !== nextMetrics.runPhase
+    || previousMetrics.inFlightParentId !== nextMetrics.inFlightParentId
+    || previousMetrics.inFlightBuiltChildCount !== nextMetrics.inFlightBuiltChildCount
+    || previousMetrics.inFlightExpectedChildCount !== nextMetrics.inFlightExpectedChildCount
   );
 }
 
@@ -2729,7 +3178,10 @@ function formatSnapshotSummary(snapshot) {
   const runState = metrics.runStatus && metrics.runStatus !== "idle"
     ? ` | ${metrics.runStatus.toLowerCase()} ${metrics.runPhase.toLowerCase()}`
     : "";
-  return `nodes ${metrics.nodes} | active ${metrics.active} | frontier ${metrics.frontier} | expansions ${metrics.expansionsUsed}${runState}`;
+  const inFlight = metrics.inFlightExpectedChildCount > 0
+    ? ` | in-flight ${metrics.inFlightBuiltChildCount}/${metrics.inFlightExpectedChildCount}`
+    : "";
+  return `nodes ${metrics.nodes} | active ${metrics.active} | frontier ${metrics.frontier} | expansions ${metrics.expansionsUsed}${runState}${inFlight}`;
 }
 
 function formatDeltaSummary(deltas) {

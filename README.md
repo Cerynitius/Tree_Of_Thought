@@ -50,7 +50,7 @@ In short, externalization turns reasoning from a hidden behavior into a real sof
 - FSM-governed node lifecycle. Proposal, calculation, evaluation, reflection, and finalization are modeled as explicit states rather than ad hoc prompt retries.
 - Lightweight intermediate evaluation plus stronger review. Non-terminal nodes can be scored cheaply while terminal or deletion-sensitive decisions still go through stronger review paths.
 - Review-gated subtree deletion. Branch removal flows through backend review before deletion.
-- Deterministic skill integration. Symbolic computation and domain-specific benchmark content live in `skills.py`, `skill_registry.md`, and `skills.md`.
+- Deterministic skill integration. Symbolic computation lives in `skills.py`, `skill_registry.md`, and `skills.md`. Benchmark problems, expected values, and per-case tool solutions live in `benchmarks.py`, outside the runtime skill registry, so the system under test cannot discover benchmark answers through skill search.
 - Live inspectable frontier. The scheduler exposes the current tree, frontier selection, candidate answers, and expansion state for operator debugging.
 
 
@@ -151,9 +151,11 @@ curl -X POST http://127.0.0.1:8000/api/tot/sessions \
 ## Repository Layout
 
 - `tot_api.py` - FastAPI app, session store, route handlers, and frontend serving
-- `fsm/` - backend routing, node FSM, models, and tree scheduler
+- `fsm/` - backend adapters (`backend.py`), HTTP client (`chat_client.py`), error taxonomy (`errors.py`), payload coercion (`payloads.py`), node FSM (`builder.py`), models, and tree scheduler
 - `frontend/` - browser UI for tree inspection and session control
-- `skills.py` - SymPy-backed computation toolkit plus domain-specific payload providers
+- `skills.py` - runtime skill registry, hard-rule checking, and ToT prompt/plugin layer
+- `physics_skills.py` - generic SymPy computation skills (mechanics, EM, quantum, thermo, relativity, optics, fluids)
+- `benchmarks.py` - benchmark fixtures (problems, expected values, per-case tool solutions) kept outside the skill registry
 - `skill_registry.md` - human-readable map from problem classes to skill names
 - `skills.md` - skill calling conventions and usage guidance
 - `tests/` - API, scheduler, FSM, and backend regression tests
@@ -179,6 +181,7 @@ python -m unittest tests.test_harness -v
 
 - Session state is stored in memory, not in a database.
 - Session creation returns a session id immediately; deeper expansion can continue in the background when `run_on_create` is enabled.
+- Each session stops expanding once it reaches `max_total_expansions` (default 64, configurable per session or via `TOT_MAX_TOTAL_EXPANSIONS`; unlimited when null). This bounds total model calls per session.
 - Local chat runs live-first by default. `allow_live_model_fallback` permits deterministic local fallback only after transport failures, while `prefer_local_fallback` or `PREFER_LOCAL_FALLBACK=1` restores the older fast fallback-first behavior.
 - If you change backend code, restart `tot_api.py` so the running server picks up the new behavior.
 - Non-terminal evaluation is intentionally lighter-weight than terminal review.

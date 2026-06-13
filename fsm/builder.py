@@ -27,7 +27,7 @@ from .models import (
     ReflectionPayload,
     ToTNode,
 )
-from .utils import _model_field_names
+from .utils import _build_model, _model_dump
 
 
 class NodeBuilderFSM:
@@ -127,6 +127,21 @@ class NodeBuilderFSM:
             "expansion_priority",
             "top66_low_score_candidate",
             "semantic_delta_critique",
+            # Provenance/bookkeeping written by the builder and backend fallbacks;
+            # these never represent a new local reasoning delta.
+            "proposal_mode",
+            "evaluation_mode",
+            "live_evaluation_deferred",
+            "live_proposal_deferred",
+            "validation_passed",
+            "current_step",
+            "active_step",
+            "local_model_fallback",
+            "fallback_stage",
+            "fallback_reason",
+            "operator_steering",
+            "operator_steering_prompt",
+            "latest_critique",
         }
     )
 
@@ -136,6 +151,8 @@ class NodeBuilderFSM:
         problem_context: dict[str, Any],
         max_reflections: int = 2,
         backend_adapter: Optional[ReasoningBackendAdapter] = None,
+        use_local_proposal: bool = False,
+        use_local_evaluation: bool = False,
     ) -> None:
         """Initialize the node builder.
 
@@ -154,6 +171,8 @@ class NodeBuilderFSM:
         self.problem_context = problem_context
         self.max_reflections = max_reflections
         self.backend_adapter = backend_adapter or DeterministicContextBackendAdapter(problem_context)
+        self.use_local_proposal = bool(use_local_proposal)
+        self.use_local_evaluation = bool(use_local_evaluation)
 
         self.node = ToTNode(parent_id=parent_node.id if parent_node else None)
 
@@ -194,16 +213,7 @@ class NodeBuilderFSM:
         PROPOSE -> CALCULATE
         """
 
-        request = ProposalRequest(
-            attempt_index=0,
-            problem_context=self.problem_context,
-            current_node=self._node_snapshot(self.node),
-            parent_node=self._node_snapshot(self.parent_node) if self.parent_node else None,
-        )
-        proposal = self._build_model(
-            ProposalPayload,
-            self._normalize_backend_payload(self.backend_adapter.propose(request)),
-        )
+        proposal = self._proposal_payload()
         top_level_models = self.problem_context.get("used_models", [])
         top_level_quantities = self.problem_context.get("quantities", {})
         top_level_boundary_conditions = self.problem_context.get("boundary_conditions", {})
@@ -249,6 +259,39 @@ class NodeBuilderFSM:
             return
         self.node.fsm_state = FSMState.CALCULATE
 
+    def _proposal_payload(self) -> ProposalPayload:
+        if self._should_use_local_proposal():
+            explicit_proposal = self.problem_context.get("proposal")
+            if isinstance(explicit_proposal, dict):
+                proposal_payload = self._normalize_backend_payload(explicit_proposal)
+                proposal_mode = "local-context"
+            else:
+                proposal_payload = self._local_proposal_payload()
+                proposal_mode = "local-heuristic"
+            proposal = _build_model(ProposalPayload, proposal_payload)
+            self.node.known_vars["proposal_mode"] = proposal_mode
+            self.node.known_vars["live_proposal_deferred"] = True
+            self._record_node_event(
+                "deferred-live-proposal",
+                proposal_mode=proposal_mode,
+                parent_id=self.parent_node.id if self.parent_node else None,
+            )
+            return proposal
+
+        request = ProposalRequest(
+            attempt_index=0,
+            problem_context=self.problem_context,
+            current_node=self._node_snapshot(self.node),
+            parent_node=self._node_snapshot(self.parent_node) if self.parent_node else None,
+        )
+        proposal = _build_model(
+            ProposalPayload,
+            self._normalize_backend_payload(self.backend_adapter.propose(request)),
+        )
+        self.node.known_vars["proposal_mode"] = "live"
+        self.node.known_vars.pop("live_proposal_deferred", None)
+        return proposal
+
     def _handle_calculate(self) -> None:
         """Run deterministic calculation checks and the hard-rule skill.
 
@@ -261,7 +304,7 @@ class NodeBuilderFSM:
         """
 
         payload = self._select_payload("calculation", attempt_index=self._calculation_attempt)
-        calculation = self._build_model(CalculationPayload, payload)
+        calculation = _build_model(CalculationPayload, payload)
         self._calculation_attempt += 1
 
         candidate_known_vars = dict(self.node.quantities)
@@ -358,16 +401,51 @@ class NodeBuilderFSM:
             reasoning
         """
 
+        if self._should_use_local_evaluation():
+            evaluation_payload = self._select_payload("evaluation", attempt_index=self._evaluation_attempt)
+            if evaluation_payload:
+                evaluation = _build_model(EvaluationPayload, evaluation_payload)
+                evaluation_mode = "local-context"
+            else:
+                evaluation = _build_model(EvaluationPayload, self._provisional_evaluation_payload())
+                evaluation_mode = "local-heuristic"
+            self._evaluation_attempt += 1
+            self._apply_evaluation_result(
+                evaluation,
+                allow_reflection=False,
+                evaluation_mode=evaluation_mode,
+            )
+            return
+
         request = EvaluationRequest(
             attempt_index=self._evaluation_attempt,
             problem_context=self.problem_context,
             current_node=self._node_snapshot(self.node),
         )
-        evaluation = self._build_model(
+        evaluation = _build_model(
             EvaluationPayload,
             self._normalize_backend_payload(self.backend_adapter.evaluate(request)),
         )
         self._evaluation_attempt += 1
+
+        self._apply_evaluation_result(
+            evaluation,
+            allow_reflection=True,
+            evaluation_mode="live",
+        )
+
+    def _apply_evaluation_result(
+        self,
+        evaluation: EvaluationPayload,
+        *,
+        allow_reflection: bool,
+        evaluation_mode: str,
+    ) -> None:
+        self.node.known_vars["evaluation_mode"] = str(evaluation_mode)
+        if evaluation_mode == "live":
+            self.node.known_vars.pop("live_evaluation_deferred", None)
+        else:
+            self.node.known_vars["live_evaluation_deferred"] = True
 
         filtered_eval_violations = self._filter_review_hard_rule_violations(
             list(evaluation.hard_rule_violations)
@@ -375,7 +453,7 @@ class NodeBuilderFSM:
         if filtered_eval_violations != list(evaluation.hard_rule_violations):
             evaluation_payload = self._normalize_backend_payload(evaluation)
             evaluation_payload["hard_rule_violations"] = filtered_eval_violations
-            evaluation = self._build_model(EvaluationPayload, evaluation_payload)
+            evaluation = _build_model(EvaluationPayload, evaluation_payload)
 
         domain_eval_violations, recoverable_eval_violations = self._categorize_rule_violations(
             list(evaluation.hard_rule_violations)
@@ -383,7 +461,7 @@ class NodeBuilderFSM:
         if domain_eval_violations != list(evaluation.hard_rule_violations):
             evaluation_payload = self._normalize_backend_payload(evaluation)
             evaluation_payload["hard_rule_violations"] = domain_eval_violations
-            evaluation = self._build_model(EvaluationPayload, evaluation_payload)
+            evaluation = _build_model(EvaluationPayload, evaluation_payload)
 
         breakdown = self._score_evaluation(evaluation)
         breakdown = self._apply_local_score_caps(
@@ -391,7 +469,7 @@ class NodeBuilderFSM:
             recoverable_rule_violations=recoverable_eval_violations,
         )
         self.node.score = breakdown.weighted_score
-        self.node.known_vars["evaluation_breakdown"] = self._model_dump(breakdown)
+        self.node.known_vars["evaluation_breakdown"] = _model_dump(breakdown)
 
         if breakdown.hard_rule_violations:
             if self._bounce_root_rule_violations(
@@ -441,7 +519,7 @@ class NodeBuilderFSM:
             return
 
         self.node.reflection_history.append(breakdown.reason)
-        if self._reflection_count < self._allowed_reflection_attempts(
+        if allow_reflection and self._reflection_count < self._allowed_reflection_attempts(
             recoverable_rule_retry_pending=bool(recoverable_eval_violations)
         ):
             self.node.fsm_state = FSMState.REFLECT
@@ -453,6 +531,16 @@ class NodeBuilderFSM:
                 violations=recoverable_eval_violations,
             )
             return
+
+        if not allow_reflection:
+            self._record_node_event(
+                "deferred-live-review",
+                source_state="evaluate",
+                trigger="local-provisional-evaluation",
+                critique=breakdown.reason,
+                evaluation_mode=evaluation_mode,
+                violations=recoverable_eval_violations,
+            )
 
         self._finalize_for_deeper_reasoning(breakdown)
 
@@ -486,7 +574,7 @@ class NodeBuilderFSM:
             current_node=self._node_snapshot(self.node),
             latest_critique=self.node.reflection_history[-1] if self.node.reflection_history else "",
         )
-        reflection = self._build_model(
+        reflection = _build_model(
             ReflectionPayload,
             self._normalize_backend_payload(self.backend_adapter.reflect(request)),
         )
@@ -513,6 +601,311 @@ class NodeBuilderFSM:
         if self._enforce_nonterminal_semantic_delta(source_state="reflect"):
             return
         self.node.fsm_state = FSMState.CALCULATE
+
+    def _should_use_local_evaluation(self) -> bool:
+        if not self.use_local_evaluation or self._should_mark_final_result_on_pass():
+            return False
+        if self.parent_node is not None:
+            return True
+        return True
+
+    def _should_use_local_proposal(self) -> bool:
+        if not self.use_local_proposal or self._should_mark_final_result_on_pass():
+            return False
+        if self.parent_node is not None:
+            return True
+        explicit_proposal = self.problem_context.get("proposal")
+        if isinstance(explicit_proposal, dict) and explicit_proposal:
+            return True
+        for key in ("meta_task", "meta_task_progress", "route_focus", "orchestrator_task"):
+            value = self.problem_context.get(key)
+            if isinstance(value, dict) and value:
+                return True
+        return False
+
+    def _selected_local_route_option(self) -> dict[str, Any]:
+        route_focus = self.problem_context.get("route_focus")
+        if isinstance(route_focus, dict) and route_focus:
+            return dict(route_focus)
+
+        parent_route_family = (
+            str(self.parent_node.known_vars.get("route_family", "")).strip()
+            if self.parent_node is not None
+            else ""
+        )
+        selected_route_family = str(
+            self.problem_context.get("route_family")
+            or self.problem_context.get("meta_task_progress", {}).get("selected_route_family")
+            or self.problem_context.get("orchestrator_task", {}).get("selected_route_family")
+            or parent_route_family
+        ).strip()
+        meta_task = self.problem_context.get("meta_task")
+        route_options = meta_task.get("route_options", []) if isinstance(meta_task, dict) else []
+        for item in route_options:
+            if not isinstance(item, dict):
+                continue
+            route_family = str(item.get("route_family") or "").strip()
+            if selected_route_family and route_family == selected_route_family:
+                return dict(item)
+        for item in route_options:
+            if isinstance(item, dict) and item:
+                return dict(item)
+        return {}
+
+    def _local_orchestrator_task(
+        self,
+        *,
+        route_option: dict[str, Any],
+        current_step: str,
+        current_guidance: str,
+        phase: str,
+    ) -> dict[str, Any]:
+        existing_task = self.problem_context.get("orchestrator_task")
+        if isinstance(existing_task, dict) and existing_task:
+            return dict(existing_task)
+
+        parent_route_family = (
+            str(self.parent_node.known_vars.get("route_family", "")).strip()
+            if self.parent_node is not None
+            else ""
+        )
+        selected_route_family = str(
+            route_option.get("route_family")
+            or self.problem_context.get("route_family")
+            or self.problem_context.get("meta_task_progress", {}).get("selected_route_family")
+            or parent_route_family
+        ).strip()
+        route_label = str(route_option.get("label") or "").strip()
+        route_guidance = str(route_option.get("guidance") or "").strip()
+
+        selected_task = current_guidance or current_step or route_guidance or route_label
+        if phase == "strategy_scan" and route_label and not current_guidance:
+            selected_task = f"Select {route_label} and keep the root claim route-local."
+
+        candidate_tasks: list[dict[str, Any]] = []
+        if selected_task:
+            candidate_tasks.append({"label": selected_task, "status": "selected"})
+        if route_guidance and route_guidance != selected_task:
+            candidate_tasks.append({"label": route_guidance, "status": "deferred"})
+
+        orchestrator_task: dict[str, Any] = {}
+        if current_step:
+            orchestrator_task["step_focus"] = current_step
+        if current_guidance or selected_task:
+            orchestrator_task["current_step_guidance"] = current_guidance or selected_task
+        if selected_task:
+            orchestrator_task["selected_task"] = selected_task
+        if selected_route_family:
+            orchestrator_task["selected_route_family"] = selected_route_family
+        if candidate_tasks:
+            orchestrator_task["candidate_tasks"] = candidate_tasks
+        return orchestrator_task
+
+    def _local_proposal_payload(self) -> dict[str, Any]:
+        parent_thought = str(self.parent_node.thought_step if self.parent_node else "").strip()
+        parent_equations = self._flatten_string_items(self.parent_node.equations if self.parent_node else [])
+        explicit_thought = str(self.problem_context.get("thought_step") or "").strip()
+        explicit_equations = self._flatten_string_items(self.problem_context.get("equations") or [])
+        explicit_known_vars = dict(self.problem_context.get("known_vars") or {})
+        route_option = self._selected_local_route_option()
+        route_label = str(route_option.get("label") or "").strip()
+        parent_route_family = (
+            str(self.parent_node.known_vars.get("route_family", "")).strip()
+            if self.parent_node is not None
+            else ""
+        )
+        parent_correction_target = (
+            str(self.parent_node.known_vars.get("correction_target", "")).strip()
+            if self.parent_node is not None
+            else ""
+        )
+        parent_correction_mode = (
+            str(self.parent_node.known_vars.get("correction_mode", "")).strip()
+            if self.parent_node is not None
+            else ""
+        )
+        route_family = str(
+            self.problem_context.get("route_family")
+            or route_option.get("route_family")
+            or self.problem_context.get("route_focus", {}).get("route_family")
+            or self.problem_context.get("meta_task_progress", {}).get("selected_route_family")
+            or parent_route_family
+        ).strip()
+        correction_target = str(
+            self.problem_context.get("correction_target")
+            or route_option.get("correction_target")
+            or self.problem_context.get("route_focus", {}).get("correction_target")
+            or parent_correction_target
+        ).strip()
+        correction_mode = str(
+            self.problem_context.get("correction_mode")
+            or route_option.get("correction_mode")
+            or self.problem_context.get("route_focus", {}).get("correction_mode")
+            or parent_correction_mode
+        ).strip()
+        meta_task_progress = self.problem_context.get("meta_task_progress")
+        current_step = ""
+        current_guidance = ""
+        phase = ""
+        if isinstance(meta_task_progress, dict):
+            current_step = str(meta_task_progress.get("current_step") or "").strip()
+            current_guidance = str(meta_task_progress.get("current_step_guidance") or "").strip()
+            phase = str(meta_task_progress.get("phase") or "").strip().lower()
+
+        orchestrator_task = self._local_orchestrator_task(
+            route_option=route_option,
+            current_step=current_step,
+            current_guidance=current_guidance,
+            phase=phase,
+        )
+        selected_task = str(orchestrator_task.get("selected_task") or current_guidance or current_step).strip()
+
+        local_delta_parts = [
+            part
+            for part in (
+                current_step,
+                correction_mode,
+                correction_target,
+                route_family,
+            )
+            if str(part).strip()
+        ]
+        local_delta = " / ".join(local_delta_parts[:3]) or "one local refinement"
+        if explicit_thought:
+            thought_step = explicit_thought
+        elif phase == "incremental_refinement" and current_step:
+            thought_step = f"Refine only the current subproblem: {current_step}."
+        elif parent_thought:
+            thought_step = f"{parent_thought} | refine {local_delta}."
+        elif route_label:
+            if phase == "strategy_scan":
+                thought_step = f"Select {route_label} and make one route-local planning claim."
+            elif selected_task:
+                thought_step = f"Advance the root plan with {route_label}: {selected_task}."
+            else:
+                thought_step = f"Start with {route_label}."
+        elif route_family:
+            if phase == "strategy_scan":
+                thought_step = f"Select the {route_family} route and make one route-local planning claim."
+            elif selected_task:
+                thought_step = f"Advance the root plan with the {route_family} route: {selected_task}."
+            else:
+                thought_step = f"Start with the {route_family} route."
+        else:
+            thought_step = (
+                f"Refine only the current child branch via {local_delta}."
+                if self.parent_node is not None
+                else f"Start the root branch via {local_delta}."
+            )
+
+        if explicit_equations:
+            equations = explicit_equations
+        else:
+            equations = list(parent_equations[:1])
+            if current_step:
+                equations.append(f"step_focus({current_step})")
+            if correction_target:
+                equations.append(f"refine({correction_target})")
+            elif route_family:
+                equations.append(f"route({route_family})")
+            if not equations and selected_task:
+                equations.append(f"task({selected_task[:48]})")
+            if not equations and current_guidance:
+                equations.append(f"guidance({current_guidance[:48]})")
+
+        local_target = "root build" if self.parent_node is None else "non-terminal child"
+        known_vars: dict[str, Any] = {
+            "proposal_mode": "local-heuristic",
+            "live_proposal_deferred": True,
+            "local_proposal_reason": (
+                f"Scheduler-local provisional proposal deferred live review for this {local_target}."
+            ),
+        }
+        known_vars.update(explicit_known_vars)
+        if current_step:
+            known_vars["current_step"] = current_step
+        if route_family:
+            known_vars["route_family"] = route_family
+        if correction_target:
+            known_vars["correction_target"] = correction_target
+        if correction_mode:
+            known_vars["correction_mode"] = correction_mode
+        if orchestrator_task:
+            known_vars["orchestrator_task"] = orchestrator_task
+
+        used_models = self._flatten_string_items(
+            self.problem_context.get("used_models")
+            or (self.parent_node.used_models if self.parent_node is not None else [])
+        )
+        quantities = dict(self.problem_context.get("quantities") or {})
+        if not quantities and self.parent_node is not None:
+            quantities = dict(self.parent_node.quantities)
+        boundary_conditions = dict(self.problem_context.get("boundary_conditions") or {})
+        if not boundary_conditions and self.parent_node is not None:
+            boundary_conditions = dict(self.parent_node.boundary_conditions)
+
+        return {
+            "thought_step": thought_step,
+            "equations": equations,
+            "known_vars": known_vars,
+            "used_models": used_models,
+            "quantities": quantities,
+            "boundary_conditions": boundary_conditions,
+        }
+
+    def _provisional_evaluation_payload(self) -> dict[str, Any]:
+        hard_rule_check = self.node.known_vars.get("hard_rule_check", {})
+        hard_rule_violations = []
+        if isinstance(hard_rule_check, dict):
+            hard_rule_violations = [
+                str(item).strip()
+                for item in hard_rule_check.get("domain_violations", [])
+                if str(item).strip()
+            ]
+
+        equation_count = len(self.node.equations)
+        used_model_count = len(self.node.used_models)
+        grounded_count = (
+            len(self.node.known_vars)
+            + len(self.node.quantities)
+            + len(self.node.boundary_conditions)
+        )
+        route_hint_count = sum(
+            1
+            for key in ("route_family", "correction_mode", "correction_target")
+            if str(self.node.known_vars.get(key, "")).strip()
+        )
+        thought_step_present = bool(str(self.node.thought_step).strip())
+        validation_passed = bool(self.node.known_vars.get("validation_passed", False))
+
+        domain_consistency = 0.72
+        if validation_passed:
+            domain_consistency += 0.08
+        domain_consistency += 0.05 * min(equation_count, 2)
+        domain_consistency += 0.03 * min(used_model_count, 2)
+        domain_consistency = round(min(0.92, domain_consistency), 4)
+
+        variable_grounding = 0.56
+        variable_grounding += 0.05 * min(grounded_count, 4)
+        if equation_count:
+            variable_grounding += 0.06
+        variable_grounding = round(min(0.9, variable_grounding), 4)
+
+        contextual_relevance = 0.68
+        if thought_step_present:
+            contextual_relevance += 0.08
+        contextual_relevance += 0.05 * min(route_hint_count, 2)
+        if self.parent_node is not None:
+            contextual_relevance += 0.04
+        contextual_relevance = round(min(0.9, contextual_relevance), 4)
+
+        return {
+            "domain_consistency": domain_consistency,
+            "variable_grounding": variable_grounding,
+            "contextual_relevance": contextual_relevance,
+            "reason": "Scheduler-local provisional evaluation deferred live review for this non-terminal child.",
+            "hard_rule_violations": hard_rule_violations,
+        }
 
     def _enforce_nonterminal_semantic_delta(self, *, source_state: str) -> bool:
         critique = self._missing_nonterminal_semantic_delta_critique()
@@ -728,7 +1121,7 @@ class NodeBuilderFSM:
         active_breakdown = breakdown
         if active_breakdown is None:
             breakdown_payload = self.node.known_vars.get("evaluation_breakdown", {})
-            active_breakdown = self._build_model(EvaluationBreakdown, breakdown_payload)
+            active_breakdown = _build_model(EvaluationBreakdown, breakdown_payload)
 
         expansion_priority = self._compute_expansion_priority(active_breakdown.weighted_score)
         self.node.known_vars["evaluation_passed"] = False
@@ -915,31 +1308,10 @@ class NodeBuilderFSM:
         """Normalize backend output to a plain dictionary before schema validation."""
 
         if isinstance(payload, BaseModel):
-            return self._model_dump(payload)
+            return _model_dump(payload)
         if isinstance(payload, dict):
             return dict(payload)
         raise TypeError("Backend adapter must return a Pydantic model or a dictionary payload.")
-
-    def _build_model(self, model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
-        """Construct a schema-locked Pydantic model with v1/v2 compatibility."""
-
-        unexpected = set(payload) - _model_field_names(model_type)
-        if unexpected:
-            names = ", ".join(sorted(unexpected))
-            raise ValueError(f"Unexpected fields for {model_type.__name__}: {names}")
-
-        try:
-            return model_type.model_validate(payload)
-        except AttributeError:
-            return model_type.parse_obj(payload)
-
-    def _model_dump(self, model: BaseModel) -> dict[str, Any]:
-        """Serialize a Pydantic model with v1/v2 compatibility."""
-
-        try:
-            return model.model_dump()
-        except AttributeError:
-            return model.dict()
 
     def _apply_node_domain_fields(
         self,
