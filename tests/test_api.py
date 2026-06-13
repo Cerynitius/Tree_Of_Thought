@@ -1,3 +1,4 @@
+import os
 import unittest
 import time
 
@@ -27,6 +28,27 @@ def deterministic_adapter_bundle(_config: ChatBackendConfig):
         return DeterministicContextBackendAdapter(problem_context)
 
     return backend_factory, ApproveDeleteReviewAdapter()
+
+
+CHAT_BACKEND_ENV_KEYS = (
+    "CHAT_BASE_URL",
+    "CHAT_TIMEOUT",
+    "PLANNING_MODEL",
+    "MODELING_MODEL",
+    "REVIEW_MODEL",
+    "NON_TERMINAL_EVALUATION_MODEL",
+    "ALLOW_LIVE_MODEL_FALLBACK",
+    "PREFER_LOCAL_FALLBACK",
+)
+
+
+def clear_chat_backend_env(test: unittest.TestCase) -> None:
+    """Remove local .env overrides so ChatBackendConfig tests see built-in defaults."""
+
+    for key in CHAT_BACKEND_ENV_KEYS:
+        original = os.environ.pop(key, None)
+        if original is not None:
+            test.addCleanup(os.environ.__setitem__, key, original)
 
 
 class FailingBackendAdapter(ReasoningBackendAdapter):
@@ -172,6 +194,7 @@ class ToTAPITests(unittest.TestCase):
         self.assertIn("/static/app.js", response.text)
 
     def test_chat_backend_config_defaults_to_live_only_local_qwen_settings(self) -> None:
+        clear_chat_backend_env(self)
         config = ChatBackendConfig()
 
         self.assertEqual(config.timeout, 600.0)
@@ -179,6 +202,7 @@ class ToTAPITests(unittest.TestCase):
         self.assertFalse(config.prefer_local_fallback)
 
     def test_chat_backend_config_defaults_to_local_qwen_model_for_all_roles(self) -> None:
+        clear_chat_backend_env(self)
         config = ChatBackendConfig()
 
         self.assertEqual(config.planning_model, "qwen3.5-9b-mlx")
@@ -445,6 +469,57 @@ class ToTAPITests(unittest.TestCase):
         self.assertEqual(len(state["root"]["children"]), 1)
         self.assertEqual(state["root"]["children"][0]["children"], [])
         self.assertEqual(state["frontier"], [])
+
+    def test_run_session_stops_at_max_total_expansions_cap(self) -> None:
+        create = self.client.post(
+            "/api/tot/sessions",
+            json={
+                "run_on_create": False,
+                "scheduler": {"max_total_expansions": 1},
+                "problem_context": {
+                    "proposal": {"equations": ["root_eq"]},
+                    "calculation": {
+                        "skill_params": {"required_equation_patterns": ["root_eq"]}
+                    },
+                    "evaluation": {"score": 8.0},
+                    "children": [
+                        {
+                            "proposal": {"equations": ["child_eq"]},
+                            "calculation": {
+                                "skill_params": {"required_equation_patterns": ["child_eq"]}
+                            },
+                            "evaluation": {"score": 8.0},
+                            "children": [
+                                {
+                                    "proposal": {"equations": ["grand_eq"]},
+                                    "calculation": {
+                                        "skill_params": {"required_equation_patterns": ["grand_eq"]}
+                                    },
+                                    "evaluation": {"score": 8.0},
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+        session_id = create.json()["session_id"]
+
+        run = self.client.post(f"/api/tot/sessions/{session_id}/run")
+
+        self.assertEqual(run.status_code, 200)
+        state = run.json()["state"]
+        self.assertEqual(state["max_total_expansions"], 1)
+        self.assertEqual(state["expansions_used"], 1)
+        self.assertEqual(len(state["frontier"]), 1)
+        self.assertEqual(state["run_state"]["status"], "ready")
+
+        rerun = self.client.post(f"/api/tot/sessions/{session_id}/run")
+
+        self.assertEqual(rerun.status_code, 200)
+        rerun_state = rerun.json()["state"]
+        self.assertEqual(rerun_state["expansions_used"], 1)
+        self.assertEqual(len(rerun_state["frontier"]), 1)
 
     def test_delete_node_endpoint_reviews_then_deletes(self) -> None:
         create = self.client.post(

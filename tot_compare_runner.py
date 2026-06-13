@@ -114,10 +114,34 @@ def select_branch_notes(root: ToTNode | None, limit: int) -> list[str]:
     return [summarize_node(node) for node in nodes[: max(1, limit)]]
 
 
-def fallback_payload_from_notes(notes: list[str]) -> dict[str, Any]:
+def fallback_payload_from_tree(root: ToTNode | None) -> dict[str, Any]:
+    """Collect only explicit answer values from the tree for grading.
+
+    Raw node JSON (scores, equations, metadata) must never reach the grader:
+    its numbers can collide with expected values and fake a correct answer.
+    Returns an empty payload when the tree holds no explicit answer, so the
+    case is graded as a failure instead of being fished for numbers.
+    """
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+    nodes = sorted(
+        iter_nodes(root),
+        key=lambda node: (node.status.value != "ACTIVE", -node.score, node.id),
+    )
+    for node in nodes:
+        for key in ("final_answer", "candidate_answer", "answer", "result"):
+            value = node.known_vars.get(key)
+            if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                text = str(value).strip()
+                if text and text not in seen:
+                    seen.add(text)
+                    candidates.append(text)
+    if not candidates:
+        return {}
     return {
-        "final_answer": "Final answer candidates from tree notes:\n" + "\n".join(notes),
-        "concise_solution": "Scored directly from tree notes after answer synthesis did not complete.",
+        "final_answer": "; ".join(candidates[:3]),
+        "concise_solution": "Explicit answer values collected from tree nodes after synthesis did not complete.",
     }
 
 
@@ -143,10 +167,16 @@ def run_case_tool_invocations(
     if not invocations:
         return {}, [], 0.0, ""
 
+    # Benchmark tool solutions live in benchmarks.py, outside the runtime skill
+    # registry, so the system under test cannot discover them via skill search.
     try:
-        from skills import invoke_skill
+        from benchmarks import benchmark_physics_solver, benchmark_symbolic_solver
     except Exception as exc:  # noqa: BLE001
         return {}, [], 0.0, f"tool_error: {exc}"
+    benchmark_solvers = {
+        "benchmark_symbolic_solver": benchmark_symbolic_solver,
+        "benchmark_physics_solver": benchmark_physics_solver,
+    }
 
     started_at = time.perf_counter()
     notes: list[str] = []
@@ -156,8 +186,11 @@ def run_case_tool_invocations(
         payload = invocation.get("payload", {})
         if not isinstance(payload, dict):
             payload = {}
+        solver = benchmark_solvers.get(skill_name)
+        if solver is None:
+            return {}, notes, time.perf_counter() - started_at, f"tool_error: unknown benchmark tool: {skill_name}"
         try:
-            result = invoke_skill(skill_name, payload)
+            result = solver(payload)
         except Exception as exc:  # noqa: BLE001
             return {}, notes, time.perf_counter() - started_at, f"tool_error: {skill_name}: {exc}"
         if isinstance(result, dict):
@@ -395,9 +428,10 @@ def run_tot_case(case: BenchmarkCase, config: ToTConfig) -> dict[str, Any]:
             ).strip(),
         }
         synthesis_source = "agent_requested_tool_fallback"
-    if branch_notes and not synthesis_payload and not tool_notes:
-        synthesis_payload = fallback_payload_from_notes(branch_notes)
-        synthesis_source = "branch_notes"
+    if not synthesis_payload and not tool_notes:
+        synthesis_payload = fallback_payload_from_tree(scheduler.root_node)
+        if synthesis_payload:
+            synthesis_source = "tree_answer_values"
 
     scored = score_case(case, synthesis_payload) if synthesis_payload else {
         "case_id": case.case_id,

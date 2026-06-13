@@ -27,7 +27,7 @@ from .models import (
     ReflectionPayload,
     ToTNode,
 )
-from .utils import _model_field_names
+from .utils import _build_model, _model_dump
 
 
 class NodeBuilderFSM:
@@ -127,6 +127,21 @@ class NodeBuilderFSM:
             "expansion_priority",
             "top66_low_score_candidate",
             "semantic_delta_critique",
+            # Provenance/bookkeeping written by the builder and backend fallbacks;
+            # these never represent a new local reasoning delta.
+            "proposal_mode",
+            "evaluation_mode",
+            "live_evaluation_deferred",
+            "live_proposal_deferred",
+            "validation_passed",
+            "current_step",
+            "active_step",
+            "local_model_fallback",
+            "fallback_stage",
+            "fallback_reason",
+            "operator_steering",
+            "operator_steering_prompt",
+            "latest_critique",
         }
     )
 
@@ -253,7 +268,7 @@ class NodeBuilderFSM:
             else:
                 proposal_payload = self._local_proposal_payload()
                 proposal_mode = "local-heuristic"
-            proposal = self._build_model(ProposalPayload, proposal_payload)
+            proposal = _build_model(ProposalPayload, proposal_payload)
             self.node.known_vars["proposal_mode"] = proposal_mode
             self.node.known_vars["live_proposal_deferred"] = True
             self._record_node_event(
@@ -269,7 +284,7 @@ class NodeBuilderFSM:
             current_node=self._node_snapshot(self.node),
             parent_node=self._node_snapshot(self.parent_node) if self.parent_node else None,
         )
-        proposal = self._build_model(
+        proposal = _build_model(
             ProposalPayload,
             self._normalize_backend_payload(self.backend_adapter.propose(request)),
         )
@@ -289,7 +304,7 @@ class NodeBuilderFSM:
         """
 
         payload = self._select_payload("calculation", attempt_index=self._calculation_attempt)
-        calculation = self._build_model(CalculationPayload, payload)
+        calculation = _build_model(CalculationPayload, payload)
         self._calculation_attempt += 1
 
         candidate_known_vars = dict(self.node.quantities)
@@ -389,10 +404,10 @@ class NodeBuilderFSM:
         if self._should_use_local_evaluation():
             evaluation_payload = self._select_payload("evaluation", attempt_index=self._evaluation_attempt)
             if evaluation_payload:
-                evaluation = self._build_model(EvaluationPayload, evaluation_payload)
+                evaluation = _build_model(EvaluationPayload, evaluation_payload)
                 evaluation_mode = "local-context"
             else:
-                evaluation = self._build_model(EvaluationPayload, self._provisional_evaluation_payload())
+                evaluation = _build_model(EvaluationPayload, self._provisional_evaluation_payload())
                 evaluation_mode = "local-heuristic"
             self._evaluation_attempt += 1
             self._apply_evaluation_result(
@@ -407,7 +422,7 @@ class NodeBuilderFSM:
             problem_context=self.problem_context,
             current_node=self._node_snapshot(self.node),
         )
-        evaluation = self._build_model(
+        evaluation = _build_model(
             EvaluationPayload,
             self._normalize_backend_payload(self.backend_adapter.evaluate(request)),
         )
@@ -438,7 +453,7 @@ class NodeBuilderFSM:
         if filtered_eval_violations != list(evaluation.hard_rule_violations):
             evaluation_payload = self._normalize_backend_payload(evaluation)
             evaluation_payload["hard_rule_violations"] = filtered_eval_violations
-            evaluation = self._build_model(EvaluationPayload, evaluation_payload)
+            evaluation = _build_model(EvaluationPayload, evaluation_payload)
 
         domain_eval_violations, recoverable_eval_violations = self._categorize_rule_violations(
             list(evaluation.hard_rule_violations)
@@ -446,7 +461,7 @@ class NodeBuilderFSM:
         if domain_eval_violations != list(evaluation.hard_rule_violations):
             evaluation_payload = self._normalize_backend_payload(evaluation)
             evaluation_payload["hard_rule_violations"] = domain_eval_violations
-            evaluation = self._build_model(EvaluationPayload, evaluation_payload)
+            evaluation = _build_model(EvaluationPayload, evaluation_payload)
 
         breakdown = self._score_evaluation(evaluation)
         breakdown = self._apply_local_score_caps(
@@ -454,7 +469,7 @@ class NodeBuilderFSM:
             recoverable_rule_violations=recoverable_eval_violations,
         )
         self.node.score = breakdown.weighted_score
-        self.node.known_vars["evaluation_breakdown"] = self._model_dump(breakdown)
+        self.node.known_vars["evaluation_breakdown"] = _model_dump(breakdown)
 
         if breakdown.hard_rule_violations:
             if self._bounce_root_rule_violations(
@@ -559,7 +574,7 @@ class NodeBuilderFSM:
             current_node=self._node_snapshot(self.node),
             latest_critique=self.node.reflection_history[-1] if self.node.reflection_history else "",
         )
-        reflection = self._build_model(
+        reflection = _build_model(
             ReflectionPayload,
             self._normalize_backend_payload(self.backend_adapter.reflect(request)),
         )
@@ -1106,7 +1121,7 @@ class NodeBuilderFSM:
         active_breakdown = breakdown
         if active_breakdown is None:
             breakdown_payload = self.node.known_vars.get("evaluation_breakdown", {})
-            active_breakdown = self._build_model(EvaluationBreakdown, breakdown_payload)
+            active_breakdown = _build_model(EvaluationBreakdown, breakdown_payload)
 
         expansion_priority = self._compute_expansion_priority(active_breakdown.weighted_score)
         self.node.known_vars["evaluation_passed"] = False
@@ -1293,31 +1308,10 @@ class NodeBuilderFSM:
         """Normalize backend output to a plain dictionary before schema validation."""
 
         if isinstance(payload, BaseModel):
-            return self._model_dump(payload)
+            return _model_dump(payload)
         if isinstance(payload, dict):
             return dict(payload)
         raise TypeError("Backend adapter must return a Pydantic model or a dictionary payload.")
-
-    def _build_model(self, model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
-        """Construct a schema-locked Pydantic model with v1/v2 compatibility."""
-
-        unexpected = set(payload) - _model_field_names(model_type)
-        if unexpected:
-            names = ", ".join(sorted(unexpected))
-            raise ValueError(f"Unexpected fields for {model_type.__name__}: {names}")
-
-        try:
-            return model_type.model_validate(payload)
-        except AttributeError:
-            return model_type.parse_obj(payload)
-
-    def _model_dump(self, model: BaseModel) -> dict[str, Any]:
-        """Serialize a Pydantic model with v1/v2 compatibility."""
-
-        try:
-            return model.model_dump()
-        except AttributeError:
-            return model.dict()
 
     def _apply_node_domain_fields(
         self,
