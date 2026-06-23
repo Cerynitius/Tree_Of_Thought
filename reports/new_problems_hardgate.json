@@ -1,0 +1,259 @@
+{
+  "source": "new_physics_problems.json",
+  "max_expansions": 12,
+  "cases": 15,
+  "solved": 10,
+  "solved_rate": 0.667,
+  "correct_answer_pruned": 5,
+  "grounding_prunes_total": 14,
+  "errored_cases": 0,
+  "suppressed_boundary_entries": [
+    "P_surface=P_hole = #active_boundary_condition",
+    "active_boundary_condition = small_angle_limit",
+    "air_resistance_negligible = negated for range calculation",
+    "field_assumption = uniform",
+    "final_height_zero = yf = 0 (projectile returns to launch level)",
+    "final_v = 0 m/s at stop",
+    "incline_angle = 25 degrees from horizontal",
+    "initial_height_zero = y0 = 0 (level ground)",
+    "initial_v = 5.0 m/s at start",
+    "isothermal = T = 300 K constant",
+    "plate_orientation = parallel"
+  ],
+  "rows": [
+    {
+      "case_id": "new_block_friction_stop",
+      "topic": "mechanics / stopping condition (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: final_velocity"
+      ],
+      "suppressed_boundary_samples": [],
+      "seconds": 177.1
+    },
+    {
+      "case_id": "new_projectile_range",
+      "topic": "mechanics / projectile (y=0 landing)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 5,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: air_resistance_negligible",
+        "Boundary condition key is not grounded in equations or known variables: final_height_zero",
+        "Boundary condition key is not grounded in equations or known variables: initial_height_zero",
+        "Boundary condition key is not grounded in equations or known variables: y_end",
+        "Boundary condition key is not grounded in equations or known variables: y_start"
+      ],
+      "suppressed_boundary_samples": [
+        "air_resistance_negligible = negated for range calculation",
+        "final_height_zero = yf = 0 (projectile returns to launch level)",
+        "initial_height_zero = y0 = 0 (level ground)"
+      ],
+      "seconds": 237.5
+    },
+    {
+      "case_id": "new_infinite_square_well",
+      "topic": "quantum / infinite well (psi(0)=psi(L)=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 533.1
+    },
+    {
+      "case_id": "new_rc_discharge",
+      "topic": "EM / RC discharge (initial-voltage boundary)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 303.9
+    },
+    {
+      "case_id": "new_isothermal_work",
+      "topic": "thermodynamics / isothermal expansion",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: isothermal"
+      ],
+      "suppressed_boundary_samples": [
+        "isothermal = T = 300 K constant"
+      ],
+      "seconds": 352.2
+    },
+    {
+      "case_id": "new_pendulum_period",
+      "topic": "mechanics / pendulum",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = small_angle_limit"
+      ],
+      "seconds": 273.6
+    },
+    {
+      "case_id": "new_flywheel_stop",
+      "topic": "rotation / angular deceleration (omega=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: final_velocity",
+        "Boundary condition key is not grounded in equations or known variables: terminal_velocity"
+      ],
+      "suppressed_boundary_samples": [],
+      "seconds": 243.4
+    },
+    {
+      "case_id": "new_torricelli_efflux",
+      "topic": "fluids / Torricelli",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition axis is not grounded in equations or known variables: P_surface"
+      ],
+      "suppressed_boundary_samples": [
+        "P_surface=P_hole = #active_boundary_condition"
+      ],
+      "seconds": 273.8
+    },
+    {
+      "case_id": "new_thin_lens",
+      "topic": "optics / thin lens",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 430.6
+    },
+    {
+      "case_id": "new_lorentz_factor",
+      "topic": "relativity / time dilation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 273.7
+    },
+    {
+      "case_id": "new_capacitor_energy",
+      "topic": "EM / parallel-plate capacitor energy",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: field_assumption",
+        "Boundary condition key is not grounded in equations or known variables: plate_orientation"
+      ],
+      "suppressed_boundary_samples": [
+        "field_assumption = uniform",
+        "plate_orientation = parallel"
+      ],
+      "seconds": 237.4
+    },
+    {
+      "case_id": "new_incline_friction_stop",
+      "topic": "mechanics / up-incline with friction (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: incline_angle"
+      ],
+      "suppressed_boundary_samples": [
+        "final_v = 0 m/s at stop",
+        "incline_angle = 25 degrees from horizontal",
+        "initial_v = 5.0 m/s at start"
+      ],
+      "seconds": 309.8
+    },
+    {
+      "case_id": "new_steady_heat_midpoint",
+      "topic": "thermo / steady-state conduction (T(0),T(L) boundaries)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 273.7
+    },
+    {
+      "case_id": "new_doppler_approach",
+      "topic": "waves / Doppler (moving source)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 322.0
+    },
+    {
+      "case_id": "new_spring_max_speed",
+      "topic": "mechanics / SHM energy (v=0 at amplitude)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 14,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 122.7
+    }
+  ]
+}
