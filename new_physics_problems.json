@@ -1,0 +1,107 @@
+[
+  {
+    "case_id": "new_block_friction_stop",
+    "topic": "mechanics / stopping condition (v=0)",
+    "prompt": "A 4.0 kg block slides along a horizontal surface at 6.0 m/s and comes to rest due to kinetic friction with coefficient mu_k = 0.20. How far does it travel before stopping? Use g = 9.8 m/s^2.",
+    "ref": "d = v^2/(2*mu*g) = 36/(2*0.20*9.8) = 9.18 m",
+    "expected_values": [{"label": "distance_m", "value": 9.18, "abs_tol": 0.3, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_projectile_range",
+    "topic": "mechanics / projectile (y=0 landing)",
+    "prompt": "A projectile is launched at 20 m/s at 40 degrees above the horizontal on level ground. What is its horizontal range? Use g = 9.8 m/s^2.",
+    "ref": "R = v^2*sin(2*theta)/g = 400*sin(80deg)/9.8 = 40.2 m",
+    "expected_values": [{"label": "range_m", "value": 40.2, "abs_tol": 1.0, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_infinite_square_well",
+    "topic": "quantum / infinite well (psi(0)=psi(L)=0)",
+    "prompt": "An electron is confined to a one-dimensional infinite square well of width L = 0.50 nm. What is its ground-state energy in electron-volts? Use h = 6.626e-34 J*s, electron mass m = 9.11e-31 kg, 1 eV = 1.602e-19 J.",
+    "ref": "E1 = h^2/(8 m L^2) = 2.41e-19 J = 1.50 eV",
+    "expected_values": [{"label": "energy_eV", "value": 1.50, "abs_tol": 0.12, "rel_tol": 0.05}]
+  },
+  {
+    "case_id": "new_rc_discharge",
+    "topic": "EM / RC discharge (initial-voltage boundary)",
+    "prompt": "A capacitor C = 2.0 microfarad charged to 12 V discharges through a resistor R = 10 kilo-ohm. What is the voltage across the capacitor after t = 30 ms?",
+    "ref": "V = V0*exp(-t/RC) = 12*exp(-1.5) = 2.68 V",
+    "expected_values": [{"label": "voltage_V", "value": 2.68, "abs_tol": 0.15, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "new_isothermal_work",
+    "topic": "thermodynamics / isothermal expansion",
+    "prompt": "Two moles of an ideal gas expand isothermally and reversibly at 300 K from a volume of 10 L to 30 L. How much work does the gas do? Use R = 8.314 J/(mol*K).",
+    "ref": "W = n R T ln(Vf/Vi) = 2*8.314*300*ln(3) = 5481 J",
+    "expected_values": [{"label": "work_J", "value": 5481, "abs_tol": 80, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_pendulum_period",
+    "topic": "mechanics / pendulum",
+    "prompt": "A simple pendulum has length 1.5 m. What is its period for small oscillations? Use g = 9.8 m/s^2.",
+    "ref": "T = 2*pi*sqrt(L/g) = 2.46 s",
+    "expected_values": [{"label": "period_s", "value": 2.46, "abs_tol": 0.06, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_flywheel_stop",
+    "topic": "rotation / angular deceleration (omega=0)",
+    "prompt": "A flywheel spinning at 120 rad/s decelerates uniformly at 8.0 rad/s^2 until it stops. Through how many radians does it turn before stopping?",
+    "ref": "theta = omega^2/(2*alpha) = 14400/16 = 900 rad",
+    "expected_values": [{"label": "angle_rad", "value": 900, "abs_tol": 15, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_torricelli_efflux",
+    "topic": "fluids / Torricelli",
+    "prompt": "Water flows out of a small hole located 3.0 m below the surface of a large open tank. What is the efflux speed of the water? Use g = 9.8 m/s^2.",
+    "ref": "v = sqrt(2 g h) = sqrt(58.8) = 7.67 m/s",
+    "expected_values": [{"label": "speed_m_s", "value": 7.67, "abs_tol": 0.2, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_thin_lens",
+    "topic": "optics / thin lens",
+    "prompt": "An object is placed 30 cm from a converging lens of focal length 20 cm. At what distance from the lens is the image formed?",
+    "ref": "1/v = 1/f - 1/u = 1/20 - 1/30 = 1/60 -> v = 60 cm",
+    "expected_values": [{"label": "image_distance_cm", "value": 60, "abs_tol": 2, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_lorentz_factor",
+    "topic": "relativity / time dilation",
+    "prompt": "A muon travels at 0.95c relative to the lab. By what Lorentz factor gamma is its lifetime dilated?",
+    "ref": "gamma = 1/sqrt(1-0.95^2) = 3.20",
+    "expected_values": [{"label": "gamma", "value": 3.20, "abs_tol": 0.06, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_capacitor_energy",
+    "topic": "EM / parallel-plate capacitor energy",
+    "prompt": "A parallel-plate capacitor has plate area 0.020 m^2 and separation 1.0 mm, charged to 100 V. How much energy is stored? Use epsilon_0 = 8.85e-12 F/m.",
+    "ref": "C = eps0 A/d = 1.77e-10 F; U = 0.5 C V^2 = 8.85e-7 J",
+    "expected_values": [{"label": "energy_J", "value": 8.85e-7, "abs_tol": 4e-8, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "new_incline_friction_stop",
+    "topic": "mechanics / up-incline with friction (v=0)",
+    "prompt": "A 2.0 kg block is given an initial speed of 5.0 m/s up a 25 degree incline with kinetic friction coefficient mu_k = 0.15. How far up the incline does it travel before momentarily stopping? Use g = 9.8 m/s^2.",
+    "ref": "a = g(sin25 + mu cos25) = 5.47 m/s^2; d = v^2/(2a) = 2.28 m",
+    "expected_values": [{"label": "distance_m", "value": 2.28, "abs_tol": 0.12, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "new_steady_heat_midpoint",
+    "topic": "thermo / steady-state conduction (T(0),T(L) boundaries)",
+    "prompt": "A uniform metal rod of length 0.40 m has its two ends held at 100 C and 20 C with no heat loss along its sides. In steady state, what is the temperature at the midpoint of the rod?",
+    "ref": "Steady-state linear profile -> T_mid = (100+20)/2 = 60 C",
+    "expected_values": [{"label": "temperature_C", "value": 60, "abs_tol": 1.5, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_doppler_approach",
+    "topic": "waves / Doppler (moving source)",
+    "prompt": "A sound source emits 500 Hz and moves toward a stationary observer at 30 m/s. What frequency does the observer hear? Use speed of sound 343 m/s.",
+    "ref": "f' = f v/(v - vs) = 500*343/313 = 548 Hz",
+    "expected_values": [{"label": "frequency_Hz", "value": 548, "abs_tol": 6, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "new_spring_max_speed",
+    "topic": "mechanics / SHM energy (v=0 at amplitude)",
+    "prompt": "A 0.50 kg mass on a spring with stiffness k = 200 N/m is released from rest at displacement 0.10 m from equilibrium. What is its maximum speed?",
+    "ref": "v_max = A sqrt(k/m) = 0.10*sqrt(400) = 2.0 m/s",
+    "expected_values": [{"label": "speed_m_s", "value": 2.0, "abs_tol": 0.06, "rel_tol": 0.03}]
+  }
+]
