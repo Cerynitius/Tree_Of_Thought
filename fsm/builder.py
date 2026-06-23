@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from difflib import SequenceMatcher
 from importlib import import_module
 from typing import Any, Optional
@@ -28,6 +29,15 @@ from .models import (
     ToTNode,
 )
 from .utils import _build_model, _model_dump
+
+
+# Boundary-grounding ("X is not grounded in equations") is an unreliable signal:
+# this model routinely writes boundary keys (v_initial, v_final, T) that do not
+# textually match its own compressed equation symbols, so the check false-positives
+# on real boundary conditions. Advisory mode (default) makes these violations
+# non-fatal in every context -- logged to ignored_violations, never pruning. Set
+# TOT_BOUNDARY_GROUNDING_FIX=0 to restore the older route-local-only toleration.
+_BOUNDARY_GROUNDING_ADVISORY = os.getenv("TOT_BOUNDARY_GROUNDING_FIX", "1") != "0"
 
 
 class NodeBuilderFSM:
@@ -105,6 +115,13 @@ class NodeBuilderFSM:
         "Missing required boundary condition:",
     )
     BOUNDARY_GROUNDING_VIOLATION_PREFIX = "Boundary condition key is not grounded in equations or known variables:"
+    # The grounding check emits both a "key is not grounded" form (bare keys) and
+    # an "axis is not grounded" form (the `axis = value` branch). Both are the same
+    # class of route-local boundary-label noise and are tolerated identically.
+    BOUNDARY_GROUNDING_VIOLATION_PREFIXES = (
+        "Boundary condition key is not grounded in equations or known variables:",
+        "Boundary condition axis is not grounded in equations or known variables:",
+    )
     SEMANTIC_DELTA_TEXT_SIMILARITY = 0.72
     SEMANTIC_DELTA_METADATA_KEYS = frozenset(
         {
@@ -584,7 +601,7 @@ class NodeBuilderFSM:
         revised_equations = self._flatten_string_items(reflection.equations) or (
             [*self._flatten_string_items(self.node.equations), f"refined_attempt_{self._reflection_count}"]
             if self.node.equations
-            else [f"refined_attempt_{self._reflection_count}"],
+            else [f"refined_attempt_{self._reflection_count}"]
         )
 
         self.node.thought_step = str(revised_thought)
@@ -605,8 +622,6 @@ class NodeBuilderFSM:
     def _should_use_local_evaluation(self) -> bool:
         if not self.use_local_evaluation or self._should_mark_final_result_on_pass():
             return False
-        if self.parent_node is not None:
-            return True
         return True
 
     def _should_use_local_proposal(self) -> bool:
@@ -1505,13 +1520,20 @@ class NodeBuilderFSM:
         *,
         checked: Optional[dict[str, Any]] = None,
     ) -> bool:
-        if not violation.startswith(self.BOUNDARY_GROUNDING_VIOLATION_PREFIX):
+        if not violation.startswith(self.BOUNDARY_GROUNDING_VIOLATION_PREFIXES):
             return False
-        if not (
-            self._is_non_terminal_route_focused_correction_context()
-            or self._is_route_local_strategy_scan_context()
-        ):
-            return False
+        if not _BOUNDARY_GROUNDING_ADVISORY:
+            # Legacy behavior: only tolerate boundary-grounding noise inside
+            # route-local contexts; elsewhere it can prune.
+            if not (
+                self._is_non_terminal_route_focused_correction_context()
+                or self._is_route_local_strategy_scan_context()
+            ):
+                return False
+        # Advisory grounding (default): boundary-grounding is an unreliable signal
+        # -- this model routinely names boundary keys (v_initial, T, v_f) that do
+        # not textually match its compressed equation symbols -- so it never prunes,
+        # only logs to ignored_violations, in every context.
         if not isinstance(checked, dict):
             return True
         semantic_violations = {

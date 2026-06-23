@@ -110,6 +110,10 @@ class ToTTreeScheduler:
         self.deletion_review_adapter = deletion_review_adapter
         # Hard ceiling on lifetime expansions for this session; None means unlimited.
         self.max_total_expansions = max_total_expansions
+        # Number of consecutive build failures tolerated for a single child before
+        # it is dropped, so a deterministically-failing child cannot wedge a session
+        # by being retried forever on every run().
+        self._max_child_build_attempts = 3
 
         self.root_node: Optional[ToTNode] = None
         self._frontier: list[dict[str, Any]] = []
@@ -146,6 +150,17 @@ class ToTTreeScheduler:
             return max(1, self.max_children_per_expansion)
         return max(1, min(self.max_children_per_expansion, int(configured_limit)))
 
+    def _max_total_expansions_reached(self) -> bool:
+        """Whether the lifetime expansion ceiling for this session is hit.
+
+        Enforced inside ``run()`` so the cap holds for any caller, not only the
+        API auto-run loop.
+        """
+        return (
+            self.max_total_expansions is not None
+            and len(self._expanded_node_ids) >= self.max_total_expansions
+        )
+
     def _has_pending_expansion(self) -> bool:
         return isinstance(self._pending_expansion, dict) and isinstance(
             self._pending_expansion.get("parent_node"), ToTNode
@@ -166,6 +181,7 @@ class ToTTreeScheduler:
             "expected_child_count": len(child_contexts),
             "remaining_child_contexts": list(child_contexts),
             "built_children": [],
+            "head_failure_count": 0,
         }
         self._restore_in_flight_expansion_from_pending()
 
@@ -323,7 +339,9 @@ class ToTTreeScheduler:
                     progress_callback()
 
             while self._has_pending_expansion() or (
-                self._frontier and len(self._expanded_node_ids) < self.expansion_budget
+                self._frontier
+                and len(self._expanded_node_ids) < self.expansion_budget
+                and not self._max_total_expansions_reached()
             ):
                 self._set_run_state(status="busy", phase="expanding-frontier")
                 if self._has_pending_expansion():
@@ -363,11 +381,31 @@ class ToTTreeScheduler:
                     child_context = remaining_child_contexts.pop(0)
                     try:
                         child_node = self._build_node(parent_node=parent_node, problem_context=child_context)
-                    except Exception:
+                    except Exception as exc:
+                        failure_count = int(pending_expansion.get("head_failure_count", 0)) + 1
+                        if failure_count >= self._max_child_build_attempts:
+                            # Deterministically-failing child: drop it after repeated
+                            # attempts instead of reinserting it and wedging the session
+                            # by re-raising the same failure on every future run().
+                            pending_expansion["head_failure_count"] = 0
+                            self._expansion_log.append(
+                                {
+                                    "parent_id": parent_node.id,
+                                    "depth": depth,
+                                    "expanded": False,
+                                    "dropped_child_after_failures": failure_count,
+                                    "error": str(exc)[:500],
+                                }
+                            )
+                            if progress_callback is not None:
+                                progress_callback()
+                            continue
                         # Put the context back so a later run() retries this child
                         # instead of silently dropping it from the batch.
+                        pending_expansion["head_failure_count"] = failure_count
                         remaining_child_contexts.insert(0, child_context)
                         raise
+                    pending_expansion["head_failure_count"] = 0
                     built_children.append((child_node, child_context))
                     self._note_in_flight_child(
                         child_node,

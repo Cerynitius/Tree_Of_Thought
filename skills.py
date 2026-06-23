@@ -98,6 +98,19 @@ def _resolve_rule_value(value: Any, known_vars: Dict[str, Any]) -> Any:
     return value
 
 
+def _safe_rule_sympify(value: Any) -> tuple[Any, Optional[str]]:
+    """Sympify a rule value, returning ``(expr, None)`` or ``(None, error)``.
+
+    Values fed to the sign/nonzero/finite checks originate from model output and
+    may be malformed. Converting a parse failure into a reported error keeps a bad
+    value from crashing the whole hard-rule check (and the calculation stage).
+    """
+    try:
+        return sp.sympify(value), None
+    except (sp.SympifyError, TypeError, SyntaxError, ValueError) as exc:
+        return None, str(exc)
+
+
 def _contains_pattern(items: Sequence[str], pattern: str) -> bool:
     return any(pattern in item for item in items)
 
@@ -749,21 +762,30 @@ def tot_hard_rule_check(params: Dict[str, Any]) -> Dict[str, Any]:
     for name in effective_params.get("positive_var_names", []):
         if name not in known_vars:
             continue
-        value = sp.sympify(known_vars[name])
+        value, parse_error = _safe_rule_sympify(known_vars[name])
+        if parse_error is not None:
+            violations.append(f"Variable could not be parsed for positivity check: {name}")
+            continue
         if value.is_positive is False:
             violations.append(f"Variable must be positive: {name}")
 
     for name in effective_params.get("nonzero_var_names", []):
         if name not in known_vars:
             continue
-        value = sp.sympify(known_vars[name])
+        value, parse_error = _safe_rule_sympify(known_vars[name])
+        if parse_error is not None:
+            violations.append(f"Variable could not be parsed for nonzero check: {name}")
+            continue
         if value.is_zero is True:
             violations.append(f"Variable must be nonzero: {name}")
 
     for name in effective_params.get("finite_var_names", []):
         if name not in known_vars:
             continue
-        value = sp.sympify(known_vars[name])
+        value, parse_error = _safe_rule_sympify(known_vars[name])
+        if parse_error is not None:
+            violations.append(f"Variable could not be parsed for finite check: {name}")
+            continue
         if value.is_finite is False:
             violations.append(f"Variable must be finite: {name}")
 
