@@ -1445,20 +1445,30 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
         *,
         fallback_reason: str,
     ) -> dict[str, Any]:
-        """Accepting payload for the explicit ``prefer_local_fallback`` fast mode only.
+        """Sub-threshold payload for the explicit ``prefer_local_fallback`` fast mode.
 
-        Live-failure paths must use ``_build_unavailable_evaluation_payload`` so a
-        dead backend cannot fabricate passing reviews.
+        Fast mode skips the live evaluation model, so NO model has actually judged
+        this node. It therefore must not fabricate a passing score (it previously
+        returned 0.82/0.78/0.82/0.86 -> weighted 8.16 >= the 6.0 acceptance
+        threshold, auto-passing every branch on invented data). Scores are 0.5
+        (weighted <= 5.0, below threshold), so a fast-mode run can still EXPLORE --
+        low scores do not prune, nodes stay viable for deeper reasoning -- but can
+        never promote a branch or mark a node solved without a real review. This
+        matches ``_build_unavailable_evaluation_payload``; the two differ only in
+        their reason text.
         """
 
         del request
         reason = self._truncate_reasoning_text(fallback_reason, self.REASONING_SHORT_TEXT_LIMIT)
         return {
-            "domain_consistency": 0.82,
-            "variable_grounding": 0.78,
-            "contextual_relevance": 0.82,
-            "simplicity_hint": 0.86,
-            "reason": f"Local fallback review accepted this non-terminal branch so exploration can continue. {reason}".strip(),
+            "domain_consistency": 0.5,
+            "variable_grounding": 0.5,
+            "contextual_relevance": 0.5,
+            "simplicity_hint": 0.5,
+            "reason": (
+                "Fast local fallback: no live model scored this branch, so it is given a "
+                f"sub-threshold placeholder and cannot pass review on fabricated data. {reason}"
+            ).strip(),
             "hard_rule_violations": [],
         }
 
