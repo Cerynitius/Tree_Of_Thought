@@ -5,7 +5,7 @@
 set -u
 cd /Users/ruixiuzhang/Desktop/Tree_Of_Thought-main
 PROB=new_physics_problems.json
-REPS=2
+REPS=3
 
 CONC=1  # serial: concurrency split LM Studio's context window -> ToT prompts overflowed (HTTP 500)
 
@@ -31,9 +31,9 @@ run() {  # $1 = output name
 
 for r in $(seq 1 $REPS); do
   echo "########## REP $r : ADVISORY (fix=1) ##########"
-  start_server 1 && run "advisory_serial_rep${r}"
+  start_server 1 && run "advisory_35b_rep${r}"
   echo "########## REP $r : HARD (fix=0) ##########"
-  start_server 0 && run "hard_serial_rep${r}"
+  start_server 0 && run "hard_35b_rep${r}"
 done
 
 # leave the server in the good (advisory) state
