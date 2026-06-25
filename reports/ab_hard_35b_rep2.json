@@ -1,0 +1,287 @@
+{
+  "source": "new_physics_problems.json",
+  "max_expansions": 12,
+  "cases": 15,
+  "solved": 11,
+  "solved_rate": 0.733,
+  "correct_answer_pruned": 3,
+  "grounding_prunes_total": 12,
+  "errored_cases": 0,
+  "suppressed_boundary_entries": [
+    "active_boundary_condition = T(0) = 100 C, T(L) = 20 C",
+    "active_boundary_condition = delta_y = 0 at impact",
+    "active_boundary_condition = diffraction limit consistency check",
+    "active_boundary_condition = final angular velocity equals zero at stop",
+    "active_boundary_condition = level ground implies vertical displacement zero at landing",
+    "active_boundary_condition = omega_final = 0 rad/s",
+    "active_boundary_condition = open_surface_atmospheric_pressure",
+    "active_boundary_condition = sin(theta) approx theta for small oscillations",
+    "active_boundary_condition = v > v_s ensures subsonic approach, validating denominator sign",
+    "active_boundary_condition = vertical displacement returns to zero at landing",
+    "active_correction = Doppler denominator sign for approaching source",
+    "active_correction = F_f = mu_k * m * g",
+    "active_correction = delta_aperture accounts for finite aperture diffraction blur",
+    "active_correction = isothermal reversible closure W = -nRT ln(V_f/V_i)",
+    "active_correction = net force vanishes at equilibrium",
+    "active_correction = sign convention for work done by gas",
+    "hole_area << tank_area = v_surface approx 0"
+  ],
+  "rows": [
+    {
+      "case_id": "new_block_friction_stop",
+      "topic": "mechanics / stopping condition (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = F_f = mu_k * m * g"
+      ],
+      "seconds": 128.7,
+      "_i": 1
+    },
+    {
+      "case_id": "new_projectile_range",
+      "topic": "mechanics / projectile (y=0 landing)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = delta_y = 0 at impact",
+        "active_boundary_condition = level ground implies vertical displacement zero at landing",
+        "active_boundary_condition = vertical displacement returns to zero at landing"
+      ],
+      "seconds": 146.6,
+      "_i": 2
+    },
+    {
+      "case_id": "new_infinite_square_well",
+      "topic": "quantum / infinite well (psi(0)=psi(L)=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 140.7,
+      "_i": 3
+    },
+    {
+      "case_id": "new_rc_discharge",
+      "topic": "EM / RC discharge (initial-voltage boundary)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 170.8,
+      "_i": 4
+    },
+    {
+      "case_id": "new_isothermal_work",
+      "topic": "thermodynamics / isothermal expansion",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = isothermal reversible closure W = -nRT ln(V_f/V_i)",
+        "active_correction = sign convention for work done by gas"
+      ],
+      "seconds": 279.5,
+      "_i": 5
+    },
+    {
+      "case_id": "new_pendulum_period",
+      "topic": "mechanics / pendulum",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = sin(theta) approx theta for small oscillations"
+      ],
+      "seconds": 170.8,
+      "_i": 6
+    },
+    {
+      "case_id": "new_flywheel_stop",
+      "topic": "rotation / angular deceleration (omega=0)",
+      "final_status": "ready",
+      "error": "",
+      "node_count": 25,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = final angular velocity equals zero at stop",
+        "active_boundary_condition = omega_final = 0 rad/s"
+      ],
+      "seconds": 102.4,
+      "_i": 7
+    },
+    {
+      "case_id": "new_torricelli_efflux",
+      "topic": "fluids / Torricelli",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: hole_area << tank_area"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = open_surface_atmospheric_pressure",
+        "hole_area << tank_area = v_surface approx 0"
+      ],
+      "seconds": 128.8,
+      "_i": 8
+    },
+    {
+      "case_id": "new_thin_lens",
+      "topic": "optics / thin lens",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = diffraction limit consistency check",
+        "active_correction = delta_aperture accounts for finite aperture diffraction blur"
+      ],
+      "seconds": 140.7,
+      "_i": 9
+    },
+    {
+      "case_id": "new_lorentz_factor",
+      "topic": "relativity / time dilation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.7,
+      "_i": 10
+    },
+    {
+      "case_id": "new_capacitor_energy",
+      "topic": "EM / parallel-plate capacitor energy",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 182.9,
+      "_i": 11
+    },
+    {
+      "case_id": "new_incline_friction_stop",
+      "topic": "mechanics / up-incline with friction (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 188.8,
+      "_i": 12
+    },
+    {
+      "case_id": "new_steady_heat_midpoint",
+      "topic": "thermo / steady-state conduction (T(0),T(L) boundaries)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = T(0) = 100 C, T(L) = 20 C"
+      ],
+      "seconds": 182.9,
+      "_i": 13
+    },
+    {
+      "case_id": "new_doppler_approach",
+      "topic": "waves / Doppler (moving source)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition",
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = v > v_s ensures subsonic approach, validating denominator sign",
+        "active_correction = Doppler denominator sign for approaching source"
+      ],
+      "seconds": 140.7,
+      "_i": 14
+    },
+    {
+      "case_id": "new_spring_max_speed",
+      "topic": "mechanics / SHM energy (v=0 at amplitude)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = net force vanishes at equilibrium"
+      ],
+      "seconds": 200.9,
+      "_i": 15
+    }
+  ]
+}

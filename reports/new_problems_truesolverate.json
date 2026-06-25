@@ -1,0 +1,264 @@
+{
+  "source": "new_physics_problems.json",
+  "max_expansions": 12,
+  "cases": 15,
+  "solved": 14,
+  "solved_rate": 0.933,
+  "correct_answer_pruned": 0,
+  "grounding_prunes_total": 0,
+  "errored_cases": 1,
+  "suppressed_boundary_entries": [
+    "E_total_conserved = no dissipation assumed",
+    "T_left = 100 C",
+    "T_right = 20 C",
+    "V(t=0) = 12 V = None",
+    "active_boundary_condition = fringing field neglected",
+    "active_correction = dissipation term set to zero",
+    "active_correction = y(tf)=0",
+    "active_correction_delta = phase accumulation constraint applied",
+    "correction_status = verified negligible",
+    "final_velocity = 0 m/s",
+    "friction_coefficient = mu_k = 0.15",
+    "incline_angle = 25 degrees",
+    "observer_stationary = True",
+    "omega_final = 0 = None",
+    "psi_boundary = 0 at x=0, L",
+    "surface_horizontal = True",
+    "v_0 = 0 m/s",
+    "v_at_max_speed = at equilibrium x=0",
+    "v_initial = 5.0 m/s",
+    "walls = infinite potential at x=0 and x=L",
+    "x_0 = 0.10 m",
+    "y(t) = 0 (active_constraint) at t_flight = None"
+  ],
+  "rows": [
+    {
+      "case_id": "new_block_friction_stop",
+      "topic": "mechanics / stopping condition (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "surface_horizontal = True"
+      ],
+      "seconds": 333.6
+    },
+    {
+      "case_id": "new_projectile_range",
+      "topic": "mechanics / projectile (y=0 landing)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = y(tf)=0",
+        "y(t) = 0 (active_constraint) at t_flight = None"
+      ],
+      "seconds": 478.4
+    },
+    {
+      "case_id": "new_infinite_square_well",
+      "topic": "quantum / infinite well (psi(0)=psi(L)=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "psi_boundary = 0 at x=0, L",
+        "walls = infinite potential at x=0 and x=L"
+      ],
+      "seconds": 423.9
+    },
+    {
+      "case_id": "new_rc_discharge",
+      "topic": "EM / RC discharge (initial-voltage boundary)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "V(t=0) = 12 V = None"
+      ],
+      "seconds": 478.3
+    },
+    {
+      "case_id": "new_isothermal_work",
+      "topic": "thermodynamics / isothermal expansion",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 442.1
+    },
+    {
+      "case_id": "new_pendulum_period",
+      "topic": "mechanics / pendulum",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 279.5
+    },
+    {
+      "case_id": "new_flywheel_stop",
+      "topic": "rotation / angular deceleration (omega=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "omega_final = 0 = None"
+      ],
+      "seconds": 424.4
+    },
+    {
+      "case_id": "new_torricelli_efflux",
+      "topic": "fluids / Torricelli",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 328.0
+    },
+    {
+      "case_id": "new_thin_lens",
+      "topic": "optics / thin lens",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction_delta = phase accumulation constraint applied"
+      ],
+      "seconds": 321.9
+    },
+    {
+      "case_id": "new_lorentz_factor",
+      "topic": "relativity / time dilation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 309.9
+    },
+    {
+      "case_id": "new_capacitor_energy",
+      "topic": "EM / parallel-plate capacitor energy",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = fringing field neglected",
+        "active_correction = dissipation term set to zero",
+        "correction_status = verified negligible"
+      ],
+      "seconds": 430.8
+    },
+    {
+      "case_id": "new_incline_friction_stop",
+      "topic": "mechanics / up-incline with friction (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 17,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "final_velocity = 0 m/s",
+        "friction_coefficient = mu_k = 0.15",
+        "incline_angle = 25 degrees",
+        "v_initial = 5.0 m/s"
+      ],
+      "seconds": 400.5
+    },
+    {
+      "case_id": "new_steady_heat_midpoint",
+      "topic": "thermo / steady-state conduction (T(0),T(L) boundaries)",
+      "final_status": "error",
+      "error": "reflection request to model 'qwen/qwen3.5-9b' failed: Timed out after 120.0s waiting for chat backend at http://localhost:1234/api/v1/chat",
+      "node_count": 14,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "T_left = 100 C",
+        "T_right = 20 C"
+      ],
+      "seconds": 476.8
+    },
+    {
+      "case_id": "new_doppler_approach",
+      "topic": "waves / Doppler (moving source)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "observer_stationary = True"
+      ],
+      "seconds": 249.5
+    },
+    {
+      "case_id": "new_spring_max_speed",
+      "topic": "mechanics / SHM energy (v=0 at amplitude)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 17,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "E_total_conserved = no dissipation assumed",
+        "v_0 = 0 m/s",
+        "v_at_max_speed = at equilibrium x=0",
+        "x_0 = 0.10 m"
+      ],
+      "seconds": 400.6
+    }
+  ]
+}

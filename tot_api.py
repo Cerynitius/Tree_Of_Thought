@@ -609,6 +609,10 @@ def create_app(
             scheduler.run_phase = "queued" if request.run_on_create else "created"
         except ChatBackendError as exc:
             _raise_backend_http_error(exc)
+        except (ValueError, TypeError) as exc:
+            # Bad scheduler bounds or malformed problem_context: report as a client
+            # error instead of leaking a raw 500.
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         session_id = app.state.session_store.create(scheduler)
         state = _serialize_session_state(app.state.session_store, session_id)
         if request.run_on_create:
