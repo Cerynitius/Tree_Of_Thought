@@ -3174,6 +3174,23 @@ class NodeHarnessTests(unittest.TestCase):
         self.assertEqual(requester.calls, ["evaluate"])
         self.assertEqual(evaluation["contextual_relevance"], 0.82)
 
+    def test_fast_local_evaluation_cannot_fabricate_passing_score(self) -> None:
+        # Regression: PREFER_LOCAL_FALLBACK fast mode skips the live evaluator and
+        # previously invented a passing score (0.82/0.78/0.82/0.86 -> 8.16 >= 6.0),
+        # promoting every branch on data no model judged. It must stay sub-threshold.
+        backend = LocalChatDualModelBackendAdapter(requester=CapturingChatRequester(), prefer_local_fallback=True)
+        payload = backend._build_local_evaluation_payload(
+            EvaluationRequest(attempt_index=0, problem_context={}, current_node=NodeSnapshot(id="node-1")),
+            fallback_reason="fast mode",
+        )
+        for key in ("domain_consistency", "variable_grounding", "contextual_relevance", "simplicity_hint"):
+            self.assertLessEqual(payload[key], 0.5, f"{key} must stay sub-threshold")
+        weighted = 10 * (
+            0.50 * payload["domain_consistency"] + 0.25 * payload["variable_grounding"]
+            + 0.10 * payload["contextual_relevance"] + 0.15 * payload["simplicity_hint"]
+        )
+        self.assertLess(weighted, 6.0, "fast-local eval must not reach the 6.0 acceptance threshold")
+
     def test_local_chat_backend_treats_textual_simplicity_hint_as_none(self) -> None:
         requester = TextualSimplicityHintEvaluationChatRequester()
         backend = LocalChatDualModelBackendAdapter(requester=requester)
