@@ -1,0 +1,277 @@
+{
+  "source": "new_physics_problems.json",
+  "max_expansions": 12,
+  "cases": 15,
+  "solved": 15,
+  "solved_rate": 1.0,
+  "correct_answer_pruned": 0,
+  "grounding_prunes_total": 0,
+  "errored_cases": 0,
+  "suppressed_boundary_entries": [
+    "active_boundary_condition = P_exit = P_atm",
+    "active_boundary_condition = T_mid = (100 + 20)/2",
+    "active_boundary_condition = V(0) = V0",
+    "active_boundary_condition = aperture diameter D >> lambda to justify paraxial approximation",
+    "active_boundary_condition = level ground implies y_final = 0",
+    "active_boundary_condition = level ground implies \u0394y = 0",
+    "active_boundary_condition = small-angle approximation sin(theta) approx theta",
+    "active_boundary_condition = \u03b8\u2080 \u226a 1 rad",
+    "active_correction = N = m*g on horizontal surface",
+    "active_correction = W = -nRT ln(Vf/Vi)",
+    "active_correction = dissipation = 0",
+    "active_correction = finite aperture limits paraxial rays",
+    "active_correction = kinetic friction work term",
+    "active_correction = minus sign for approaching source",
+    "active_correction = sign convention adjusted for work done by gas",
+    "active_correction = sign convention for work done by gas",
+    "active_correction = substitute v=0.95c into gamma formula",
+    "active_correction = uniform deceleration closure replaces generic eigenvalue state map",
+    "active_correction = verify gamma > 1 and finite for v=0.95c",
+    "limit_check = V(t) decays monotonically to 0"
+  ],
+  "rows": [
+    {
+      "case_id": "new_block_friction_stop",
+      "topic": "mechanics / stopping condition (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = N = m*g on horizontal surface"
+      ],
+      "seconds": 116.7,
+      "_i": 1
+    },
+    {
+      "case_id": "new_projectile_range",
+      "topic": "mechanics / projectile (y=0 landing)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = level ground implies y_final = 0",
+        "active_boundary_condition = level ground implies \u0394y = 0"
+      ],
+      "seconds": 164.8,
+      "_i": 2
+    },
+    {
+      "case_id": "new_infinite_square_well",
+      "topic": "quantum / infinite well (psi(0)=psi(L)=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 158.7,
+      "_i": 3
+    },
+    {
+      "case_id": "new_rc_discharge",
+      "topic": "EM / RC discharge (initial-voltage boundary)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = V(0) = V0",
+        "limit_check = V(t) decays monotonically to 0"
+      ],
+      "seconds": 201.0,
+      "_i": 4
+    },
+    {
+      "case_id": "new_isothermal_work",
+      "topic": "thermodynamics / isothermal expansion",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = W = -nRT ln(Vf/Vi)",
+        "active_correction = sign convention adjusted for work done by gas",
+        "active_correction = sign convention for work done by gas"
+      ],
+      "seconds": 194.9,
+      "_i": 5
+    },
+    {
+      "case_id": "new_pendulum_period",
+      "topic": "mechanics / pendulum",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = small-angle approximation sin(theta) approx theta",
+        "active_boundary_condition = \u03b8\u2080 \u226a 1 rad"
+      ],
+      "seconds": 170.9,
+      "_i": 6
+    },
+    {
+      "case_id": "new_flywheel_stop",
+      "topic": "rotation / angular deceleration (omega=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = uniform deceleration closure replaces generic eigenvalue state map"
+      ],
+      "seconds": 399.8,
+      "_i": 7
+    },
+    {
+      "case_id": "new_torricelli_efflux",
+      "topic": "fluids / Torricelli",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = P_exit = P_atm"
+      ],
+      "seconds": 278.9,
+      "_i": 8
+    },
+    {
+      "case_id": "new_thin_lens",
+      "topic": "optics / thin lens",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = aperture diameter D >> lambda to justify paraxial approximation",
+        "active_correction = finite aperture limits paraxial rays"
+      ],
+      "seconds": 303.7,
+      "_i": 9
+    },
+    {
+      "case_id": "new_lorentz_factor",
+      "topic": "relativity / time dilation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = substitute v=0.95c into gamma formula",
+        "active_correction = verify gamma > 1 and finite for v=0.95c"
+      ],
+      "seconds": 152.7,
+      "_i": 10
+    },
+    {
+      "case_id": "new_capacitor_energy",
+      "topic": "EM / parallel-plate capacitor energy",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 189.0,
+      "_i": 11
+    },
+    {
+      "case_id": "new_incline_friction_stop",
+      "topic": "mechanics / up-incline with friction (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = kinetic friction work term"
+      ],
+      "seconds": 309.1,
+      "_i": 12
+    },
+    {
+      "case_id": "new_steady_heat_midpoint",
+      "topic": "thermo / steady-state conduction (T(0),T(L) boundaries)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = T_mid = (100 + 20)/2"
+      ],
+      "seconds": 176.8,
+      "_i": 13
+    },
+    {
+      "case_id": "new_doppler_approach",
+      "topic": "waves / Doppler (moving source)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = minus sign for approaching source"
+      ],
+      "seconds": 170.8,
+      "_i": 14
+    },
+    {
+      "case_id": "new_spring_max_speed",
+      "topic": "mechanics / SHM energy (v=0 at amplitude)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 14,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = dissipation = 0"
+      ],
+      "seconds": 86.3,
+      "_i": 15
+    }
+  ]
+}

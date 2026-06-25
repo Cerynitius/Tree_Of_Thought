@@ -1,0 +1,394 @@
+{
+  "suites": [
+    "boundary",
+    "ap1",
+    "em",
+    "traps"
+  ],
+  "max_expansions": 12,
+  "cases": 30,
+  "solved": 0,
+  "solved_rate": 0.0,
+  "correct_answer_pruned": 0,
+  "grounding_prunes_total": 10,
+  "rows": [
+    {
+      "case_id": "boundary_velocity_first_stop_integral",
+      "topic": "boundary_first_event_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "seconds": 149.5
+    },
+    {
+      "case_id": "boundary_piecewise_energy_late_root",
+      "topic": "boundary_piecewise_reachability",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.6
+    },
+    {
+      "case_id": "boundary_signed_density_total_field",
+      "topic": "boundary_signed_gauss_integral",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 21,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.6
+    },
+    {
+      "case_id": "boundary_three_capacitor_opposite_polarity",
+      "topic": "boundary_charge_sharing_signs",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.5
+    },
+    {
+      "case_id": "boundary_reversed_rc_zero_crossing",
+      "topic": "boundary_transient_signs",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "seconds": 149.3
+    },
+    {
+      "case_id": "boundary_flux_three_factor_product_rule",
+      "topic": "boundary_flux_product_rule",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.5
+    },
+    {
+      "case_id": "angled_pull_with_friction",
+      "topic": "forces_and_kinematics",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 148.9
+    },
+    {
+      "case_id": "atwood_acceleration_tension",
+      "topic": "newton_second_law_systems",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 21,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.5
+    },
+    {
+      "case_id": "loop_top_normal_force",
+      "topic": "energy_and_circular_motion",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.5
+    },
+    {
+      "case_id": "inelastic_collision_spring",
+      "topic": "momentum_and_energy",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 0,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 140.3
+    },
+    {
+      "case_id": "disk_angular_acceleration",
+      "topic": "rotational_dynamics",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 0,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 140.3
+    },
+    {
+      "case_id": "rolling_cylinder_down_ramp",
+      "topic": "rotational_energy",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.0
+    },
+    {
+      "case_id": "spring_shm_max_values",
+      "topic": "simple_harmonic_motion",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.0
+    },
+    {
+      "case_id": "pendulum_bottom_tension",
+      "topic": "energy_and_circular_force",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 21,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: bottom"
+      ],
+      "seconds": 149.2
+    },
+    {
+      "case_id": "impulse_force_time_graph",
+      "topic": "impulse_and_momentum",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.1
+    },
+    {
+      "case_id": "work_energy_force_position_graph",
+      "topic": "work_energy_from_graph",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition",
+        "Boundary condition key is not grounded in equations or known variables: friction_type"
+      ],
+      "seconds": 149.0
+    },
+    {
+      "case_id": "em_nonuniform_line_charge_axis_field",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: limits",
+        "Boundary condition key is not grounded in equations or known variables: marker"
+      ],
+      "seconds": 149.0
+    },
+    {
+      "case_id": "em_uniform_disk_axis_field",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 21,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "seconds": 149.2
+    },
+    {
+      "case_id": "em_radial_density_sphere_inside_field",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: symmetry"
+      ],
+      "seconds": 149.2
+    },
+    {
+      "case_id": "em_exponential_field_potential",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 148.8
+    },
+    {
+      "case_id": "em_coaxial_capacitance_pf",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.1
+    },
+    {
+      "case_id": "em_rc_discharge_milli_units",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.1
+    },
+    {
+      "case_id": "em_nonuniform_current_wire_bfield_mt",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 148.5
+    },
+    {
+      "case_id": "em_decaying_flux_emf_mv",
+      "topic": "physics_c_em_calculus",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: uniformity"
+      ],
+      "seconds": 149.2
+    },
+    {
+      "case_id": "trap_constant_speed_incline_friction",
+      "topic": "mixed_traps",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 21,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.2
+    },
+    {
+      "case_id": "trap_normal_force_work",
+      "topic": "mixed_traps",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.1
+    },
+    {
+      "case_id": "trap_loop_minimum_top_speed",
+      "topic": "mixed_traps",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 148.6
+    },
+    {
+      "case_id": "trap_table_block_hanging_mass_friction",
+      "topic": "mixed_traps",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 148.5
+    },
+    {
+      "case_id": "trap_potential_zero_not_field_zero",
+      "topic": "mixed_traps",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 20,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 149.1
+    },
+    {
+      "case_id": "trap_induction_current_magnitude",
+      "topic": "mixed_traps",
+      "final_status": "timeout",
+      "error": "",
+      "node_count": 19,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "seconds": 148.6
+    }
+  ]
+}

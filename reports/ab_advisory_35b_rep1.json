@@ -1,0 +1,268 @@
+{
+  "source": "new_physics_problems.json",
+  "max_expansions": 12,
+  "cases": 15,
+  "solved": 15,
+  "solved_rate": 1.0,
+  "correct_answer_pruned": 0,
+  "grounding_prunes_total": 0,
+  "errored_cases": 0,
+  "suppressed_boundary_entries": [
+    "active_boundary_condition = Dirichlet ends at 100 C and 20 C",
+    "active_boundary_condition = large tank implies v_surface approx 0",
+    "active_boundary_condition = level ground implies y=0 at landing",
+    "active_boundary_condition = v_max occurs at x = 0 where net force vanishes",
+    "active_boundary_condition = v_s < v for valid Doppler shift",
+    "active_boundary_condition = vertical displacement y=0 at landing time T",
+    "active_boundary_condition = vertical displacement zero at landing",
+    "active_boundary_condition = volume ratio Vf/Vi is dimensionless, so liters cancel without conversion",
+    "active_boundary_condition = wavefunction vanishes at x=0 and x=L",
+    "active_correction = confinement length L scales energy as 1/L^2",
+    "active_correction = denominator sign is minus for source approaching observer",
+    "active_correction = denominator uses minus sign for source approaching observer",
+    "active_correction = finite aperture size shifts effective focal length",
+    "active_correction = fixed aperture diameter controls diffraction envelope width",
+    "active_correction = gamma = 1/sqrt(1 - beta^2) with beta = v/c",
+    "active_correction = small-angle approximation sin(theta) approx theta",
+    "active_correction = v_surface -> 0 as A_tank/A_hole -> infinity"
+  ],
+  "rows": [
+    {
+      "case_id": "new_block_friction_stop",
+      "topic": "mechanics / stopping condition (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.4,
+      "_i": 1
+    },
+    {
+      "case_id": "new_projectile_range",
+      "topic": "mechanics / projectile (y=0 landing)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = level ground implies y=0 at landing",
+        "active_boundary_condition = vertical displacement y=0 at landing time T",
+        "active_boundary_condition = vertical displacement zero at landing"
+      ],
+      "seconds": 164.7,
+      "_i": 2
+    },
+    {
+      "case_id": "new_infinite_square_well",
+      "topic": "quantum / infinite well (psi(0)=psi(L)=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = wavefunction vanishes at x=0 and x=L",
+        "active_correction = confinement length L scales energy as 1/L^2"
+      ],
+      "seconds": 303.5,
+      "_i": 3
+    },
+    {
+      "case_id": "new_rc_discharge",
+      "topic": "EM / RC discharge (initial-voltage boundary)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 302.9,
+      "_i": 4
+    },
+    {
+      "case_id": "new_isothermal_work",
+      "topic": "thermodynamics / isothermal expansion",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = volume ratio Vf/Vi is dimensionless, so liters cancel without conversion"
+      ],
+      "seconds": 273.0,
+      "_i": 5
+    },
+    {
+      "case_id": "new_pendulum_period",
+      "topic": "mechanics / pendulum",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = small-angle approximation sin(theta) approx theta"
+      ],
+      "seconds": 170.8,
+      "_i": 6
+    },
+    {
+      "case_id": "new_flywheel_stop",
+      "topic": "rotation / angular deceleration (omega=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 291.5,
+      "_i": 7
+    },
+    {
+      "case_id": "new_torricelli_efflux",
+      "topic": "fluids / Torricelli",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = large tank implies v_surface approx 0",
+        "active_correction = v_surface -> 0 as A_tank/A_hole -> infinity"
+      ],
+      "seconds": 266.9,
+      "_i": 8
+    },
+    {
+      "case_id": "new_thin_lens",
+      "topic": "optics / thin lens",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = finite aperture size shifts effective focal length",
+        "active_correction = fixed aperture diameter controls diffraction envelope width"
+      ],
+      "seconds": 158.7,
+      "_i": 9
+    },
+    {
+      "case_id": "new_lorentz_factor",
+      "topic": "relativity / time dilation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = gamma = 1/sqrt(1 - beta^2) with beta = v/c"
+      ],
+      "seconds": 146.7,
+      "_i": 10
+    },
+    {
+      "case_id": "new_capacitor_energy",
+      "topic": "EM / parallel-plate capacitor energy",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 206.9,
+      "_i": 11
+    },
+    {
+      "case_id": "new_incline_friction_stop",
+      "topic": "mechanics / up-incline with friction (v=0)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 164.8,
+      "_i": 12
+    },
+    {
+      "case_id": "new_steady_heat_midpoint",
+      "topic": "thermo / steady-state conduction (T(0),T(L) boundaries)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = Dirichlet ends at 100 C and 20 C"
+      ],
+      "seconds": 182.9,
+      "_i": 13
+    },
+    {
+      "case_id": "new_doppler_approach",
+      "topic": "waves / Doppler (moving source)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = v_s < v for valid Doppler shift",
+        "active_correction = denominator sign is minus for source approaching observer",
+        "active_correction = denominator uses minus sign for source approaching observer"
+      ],
+      "seconds": 140.7,
+      "_i": 14
+    },
+    {
+      "case_id": "new_spring_max_speed",
+      "topic": "mechanics / SHM energy (v=0 at amplitude)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = v_max occurs at x = 0 where net force vanishes"
+      ],
+      "seconds": 176.7,
+      "_i": 15
+    }
+  ]
+}

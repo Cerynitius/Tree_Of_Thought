@@ -1167,6 +1167,10 @@ function isSessionBusy(snapshot) {
   return status === "busy";
 }
 
+function isSessionErrored(snapshot) {
+  return String(getRunState(snapshot).status || "").trim().toLowerCase() === "error";
+}
+
 function getRenderableRoot(snapshot) {
   const root = snapshot && snapshot.root ? snapshot.root : null;
   if (root) {
@@ -2574,9 +2578,14 @@ async function refreshSession(options = {}) {
       getSnapshotMetrics(response.state)
     );
     const runState = getRunState(response.state);
+    const errored = isSessionErrored(response.state);
+    // An errored run keeps in_flight_expansion only so the operator can resume
+    // it manually; the background thread is dead, so it is not "work in progress"
+    // and polling should pause and surface the error instead of spinning forever.
     const hasBackgroundWork = Boolean(
-      runState.auto_run_requested
-      || (runState.in_flight_expansion && typeof runState.in_flight_expansion === "object")
+      !errored
+      && (runState.auto_run_requested
+        || (runState.in_flight_expansion && typeof runState.in_flight_expansion === "object"))
     );
     const hasStableIdleSnapshot = Boolean(
       !isSessionBusy(response.state)
@@ -2590,6 +2599,7 @@ async function refreshSession(options = {}) {
     );
     const preserveSilentFeedback = Boolean(
       options.silent
+      && !errored
       && (hasStableIdleSnapshot || (!hasVisibleChange && matchesCurrentFeedback))
     );
     if (options.silent && hasStableIdleSnapshot && uiState.pollingEnabled) {
@@ -2981,6 +2991,19 @@ function summarizeSessionAction(action, previousSnapshot, nextSnapshot) {
   const deltas = getSnapshotDeltas(previousMetrics, nextMetrics);
   const runState = getRunState(nextSnapshot);
   const sessionBusy = isSessionBusy(nextSnapshot);
+
+  if (isSessionErrored(nextSnapshot)) {
+    const lastError = String(runState.last_error || "").replace(/\s+/g, " ").trim();
+    const shortError = lastError ? lastError.slice(0, 220) : "";
+    const errorTitle = "Run stopped on a backend error.";
+    return {
+      title: errorTitle,
+      detail: `${formatSnapshotSummary(nextSnapshot)}${shortError ? ` Last error: ${shortError}` : ""}`.trim(),
+      tone: "error",
+      statusMessage: shortError ? `Run failed: ${shortError}` : errorTitle,
+      statusMessageSilent: errorTitle,
+    };
+  }
 
   if (action === "create") {
     return {
