@@ -28,7 +28,7 @@ An earlier "rarely completes (1/75)" reading was wrong: the harness capped cases
 140–240s but the 9B needs ~250–480s/case. Given adequate wall-clock the system solves
 at ~93%. (See `new_problems_truesolverate.json`.)
 
-## Real-data grounding-precision analysis (`analyze_grounding.py`)
+## Real-data grounding-precision analysis (`experiments/analyze_grounding.py`)
 Instrumented the grounding check to capture every real `(equations, known_vars,
 boundary_conditions)` context where it fired, across 57 real physics problem contexts:
 

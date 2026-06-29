@@ -10,6 +10,7 @@ from typing import Any, Callable, Literal, Optional, TypeVar
 from uuid import uuid4
 
 import os
+import time
 
 import uvicorn
 from dotenv import load_dotenv
@@ -169,13 +170,28 @@ class SessionDeleteResponse(BaseModel):
 class SchedulerSessionStore:
     """In-memory session store for live ToT schedulers."""
 
-    def __init__(self, *, max_active_auto_runs: Optional[int] = 3) -> None:
+    def __init__(
+        self,
+        *,
+        max_active_auto_runs: Optional[int] = 3,
+        max_sessions: Optional[int] = 256,
+        session_ttl_seconds: Optional[float] = None,
+    ) -> None:
         self._sessions: dict[str, ToTTreeScheduler] = {}
         self._session_locks: dict[str, RLock] = {}
         self._session_snapshots: dict[str, dict[str, Any]] = {}
+        self._session_last_active: dict[str, float] = {}
         self._lock = RLock()
         self.max_active_auto_runs = (
             None if max_active_auto_runs is None else max(1, int(max_active_auto_runs))
+        )
+        # Bound in-memory session retention so abandoned sessions cannot leak. The
+        # LRU cap is the hard memory bound; the optional TTL evicts idle sessions
+        # sooner. Both skip any session that is busy, holding/awaiting an auto-run
+        # slot, or currently locked. None/<=0 disables a bound.
+        self._max_sessions = None if not max_sessions or max_sessions <= 0 else int(max_sessions)
+        self._session_ttl_seconds = (
+            None if not session_ttl_seconds or session_ttl_seconds <= 0 else float(session_ttl_seconds)
         )
         self._active_auto_run_sessions: set[str] = set()
         self._auto_run_wait_queue: deque[str] = deque()
@@ -192,11 +208,15 @@ class SchedulerSessionStore:
             self._sessions[session_id] = scheduler
             self._session_locks[session_id] = RLock()
             self._session_snapshots[session_id] = snapshot
+            self._session_last_active[session_id] = time.monotonic()
+            self._evict_locked()
         return session_id
 
     def get(self, session_id: str) -> ToTTreeScheduler:
         with self._lock:
             scheduler = self._sessions.get(session_id)
+            if scheduler is not None:
+                self._session_last_active[session_id] = time.monotonic()
         if scheduler is None:
             raise KeyError(session_id)
         return scheduler
@@ -206,6 +226,8 @@ class SchedulerSessionStore:
             scheduler = self._sessions.get(session_id)
             session_lock = self._session_locks.get(session_id)
             cached_snapshot = deepcopy(self._session_snapshots.get(session_id, {}))
+            if scheduler is not None:
+                self._session_last_active[session_id] = time.monotonic()
         if scheduler is None or session_lock is None:
             raise KeyError(session_id)
         if not session_lock.acquire(blocking=False):
@@ -216,7 +238,8 @@ class SchedulerSessionStore:
             session_lock.release()
 
         with self._lock:
-            self._session_snapshots[session_id] = snapshot
+            if session_id in self._sessions:
+                self._session_snapshots[session_id] = snapshot
         return jsonable_encoder(deepcopy(snapshot))
 
     def execute(
@@ -227,13 +250,17 @@ class SchedulerSessionStore:
         with self._lock:
             scheduler = self._sessions.get(session_id)
             session_lock = self._session_locks.get(session_id)
+            if scheduler is not None:
+                self._session_last_active[session_id] = time.monotonic()
         if scheduler is None or session_lock is None:
             raise KeyError(session_id)
         with session_lock:
             result = operation(scheduler)
             snapshot = self._freeze_snapshot(scheduler)
         with self._lock:
-            self._session_snapshots[session_id] = snapshot
+            if session_id in self._sessions:
+                self._session_snapshots[session_id] = snapshot
+                self._session_last_active[session_id] = time.monotonic()
         return result
 
     def publish_snapshot(self, session_id: str, scheduler: ToTTreeScheduler) -> None:
@@ -242,6 +269,7 @@ class SchedulerSessionStore:
             if session_id not in self._sessions:
                 raise KeyError(session_id)
             self._session_snapshots[session_id] = snapshot
+            self._session_last_active[session_id] = time.monotonic()
 
     def delete(self, session_id: str) -> bool:
         with self._lock:
@@ -253,10 +281,65 @@ class SchedulerSessionStore:
                 deleted = self._sessions.pop(session_id, None) is not None
                 self._session_locks.pop(session_id, None)
                 self._session_snapshots.pop(session_id, None)
+                self._session_last_active.pop(session_id, None)
                 self._active_auto_run_sessions.discard(session_id)
                 self._remove_from_auto_run_wait_queue(session_id)
                 self._auto_run_condition.notify_all()
                 return deleted
+
+    def _session_is_evictable_locked(self, session_id: str) -> bool:
+        """Whether a session may be evicted. Caller must hold ``self._lock``.
+
+        Never evict a session that is busy, holding or awaiting an auto-run slot.
+        """
+        if session_id in self._active_auto_run_sessions:
+            return False
+        if session_id in self._auto_run_wait_queue:
+            return False
+        scheduler = self._sessions.get(session_id)
+        if scheduler is not None and str(getattr(scheduler, "run_status", "")).strip().lower() in {"busy", "queued"}:
+            return False
+        return True
+
+    def _drop_locked(self, session_id: str) -> bool:
+        """Remove a session's state. Caller holds ``self._lock``.
+
+        Acquires the session lock non-blocking and skips (returns False) if it is
+        held, so an in-use session is never yanked out from under an operation.
+        """
+        session_lock = self._session_locks.get(session_id)
+        if session_lock is not None and not session_lock.acquire(blocking=False):
+            return False
+        try:
+            self._sessions.pop(session_id, None)
+            self._session_snapshots.pop(session_id, None)
+            self._session_last_active.pop(session_id, None)
+            self._active_auto_run_sessions.discard(session_id)
+            self._remove_from_auto_run_wait_queue(session_id)
+        finally:
+            if session_lock is not None:
+                session_lock.release()
+        self._session_locks.pop(session_id, None)
+        return True
+
+    def _evict_locked(self) -> None:
+        """Bound retention: drop TTL-expired and over-cap idle sessions. Holds ``self._lock``."""
+        if self._session_ttl_seconds is not None:
+            now = time.monotonic()
+            for session_id in list(self._sessions):
+                if not self._session_is_evictable_locked(session_id):
+                    continue
+                if now - self._session_last_active.get(session_id, now) > self._session_ttl_seconds:
+                    self._drop_locked(session_id)
+        if self._max_sessions is not None and len(self._sessions) > self._max_sessions:
+            evictable = [s for s in self._sessions if self._session_is_evictable_locked(s)]
+            evictable.sort(key=lambda s: self._session_last_active.get(s, 0.0))
+            overflow = len(self._sessions) - self._max_sessions
+            for session_id in evictable:
+                if overflow <= 0:
+                    break
+                if self._drop_locked(session_id):
+                    overflow -= 1
 
     def _remove_from_auto_run_wait_queue(self, session_id: str) -> None:
         if not self._auto_run_wait_queue:
@@ -555,7 +638,9 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="ToT API", version="0.1.0")
     app.state.session_store = session_store or SchedulerSessionStore(
-        max_active_auto_runs=_env_optional_int("TOT_MAX_ACTIVE_AUTO_RUNS", 3)
+        max_active_auto_runs=_env_optional_int("TOT_MAX_ACTIVE_AUTO_RUNS", 3),
+        max_sessions=_env_optional_int("TOT_MAX_SESSIONS", 256),
+        session_ttl_seconds=_env_optional_int("TOT_SESSION_TTL_SECONDS", None),
     )
     app.state.adapter_bundle_factory = adapter_bundle_factory or _default_adapter_bundle_factory
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="frontend-static")

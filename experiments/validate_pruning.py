@@ -23,7 +23,11 @@ import json
 import time
 import urllib.error
 import urllib.request
+import pathlib
+import sys
 from typing import Any
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))  # repo root on path
 
 from direct_9b_benchmark import SUITES, extract_numbers
 

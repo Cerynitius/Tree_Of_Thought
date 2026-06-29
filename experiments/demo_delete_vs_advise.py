@@ -9,6 +9,11 @@ browser renders), in HARD mode (deletes) vs ADVISORY mode (advises).
 Mode comes from TOT_BOUNDARY_GROUNDING_FIX (read at import), so run this twice.
 """
 import os
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))  # repo root on path
+
 from fsm import NodeBuilderFSM, NodeStatus, ToTNode
 
 # This mirrors what the scheduler builds for a terminal route step from a browser
