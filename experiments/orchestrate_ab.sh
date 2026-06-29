@@ -3,8 +3,8 @@
 # Each rep runs advisory then hard (interleaved to avoid temporal drift), saving a
 # separate report per run so partial results survive interruption.
 set -u
-cd /Users/ruixiuzhang/Desktop/Tree_Of_Thought-main
-PROB=new_physics_problems.json
+cd "$(dirname "$0")/.."   # run from repo root
+PROB=experiments/new_physics_problems.json
 REPS=3
 
 CONC=1  # serial: concurrency split LM Studio's context window -> ToT prompts overflowed (HTTP 500)
@@ -25,7 +25,7 @@ start_server() {  # $1 = TOT_BOUNDARY_GROUNDING_FIX value
 run() {  # $1 = output name
   # Budget-bound: high per-case timeout so concurrency-inflated latency never
   # fakes a wall-clock timeout; cases finish on solved/ready, not the clock.
-  python -u validate_pruning.py --problems-file "$PROB" --max-expansions 12 \
+  python -u experiments/validate_pruning.py --problems-file "$PROB" --max-expansions 12 \
     --concurrency 1 --per-case-timeout 600 --poll-interval 6 --output "reports/ab_$1.json"
 }
 

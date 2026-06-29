@@ -991,3 +991,41 @@ class ToTAPITests(unittest.TestCase):
         self.assertIsNotNone(final_second)
         self.assertEqual(final_second["run_state"]["status"], "ready")
         self.assertGreaterEqual(final_second["expansions_used"], 1)
+
+
+class SessionStoreEvictionTests(unittest.TestCase):
+    """The in-memory store must bound retention so abandoned sessions cannot leak."""
+
+    class _FakeScheduler:
+        def __init__(self, status: str = "ready") -> None:
+            self.run_status = status
+
+        def snapshot(self) -> dict:
+            return {"run_state": {"status": self.run_status}}
+
+    def test_lru_cap_evicts_oldest_idle_sessions(self) -> None:
+        store = SchedulerSessionStore(max_sessions=3)
+        ids = [store.create(self._FakeScheduler("ready")) for _ in range(6)]
+        with store._lock:
+            self.assertLessEqual(len(store._sessions), 3)
+        self.assertIn(ids[-1], store._sessions)   # newest kept
+        self.assertNotIn(ids[0], store._sessions)  # oldest evicted
+
+    def test_busy_sessions_are_never_evicted(self) -> None:
+        store = SchedulerSessionStore(max_sessions=2)
+        busy = store.create(self._FakeScheduler("busy"))
+        for _ in range(8):
+            store.create(self._FakeScheduler("ready"))
+        self.assertIn(busy, store._sessions)  # busy survives despite the cap
+
+    def test_ttl_evicts_idle_sessions(self) -> None:
+        store = SchedulerSessionStore(max_sessions=None, session_ttl_seconds=0.05)
+        old = store.create(self._FakeScheduler("ready"))
+        time.sleep(0.08)
+        fresh = store.create(self._FakeScheduler("ready"))  # create triggers the TTL sweep
+        self.assertNotIn(old, store._sessions)
+        self.assertIn(fresh, store._sessions)
+
+
+if __name__ == "__main__":
+    unittest.main()

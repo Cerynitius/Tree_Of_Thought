@@ -1,8 +1,8 @@
 """Offline check of the smart-gate premise against REAL grounding-fire contexts.
 
-Reads /tmp/grounding_contexts.jsonl (captured by the TOT_GROUNDING_LOG
-instrumentation across many real physics problems). For every context where the
-CURRENT grounding check fired, it:
+Reads grounding_contexts.jsonl (the 57 real grounding-fire contexts shipped next to
+this script; originally captured by an env-gated TOT_GROUNDING_LOG hook in skills.py,
+available in git history). For every context where the CURRENT grounding check fired, it:
   1. categorizes WHY (suffix/alias mismatch, numeric value, descriptive value,
      or genuinely-unrelated), and
   2. runs a PROTOTYPE "smart" predicate (suffix/alias normalization +
@@ -15,12 +15,15 @@ This tests whether the proposed fix is empirically justified BEFORE implementing
 it in the system.
 """
 import json
+import pathlib
 import re
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))  # repo root on path
+
 from skills import _text_symbols, _normalize_boundary_condition_key_text, _boundary_condition_value_text
 
-LOG = sys.argv[1] if len(sys.argv) > 1 else "/tmp/grounding_contexts.jsonl"
+LOG = sys.argv[1] if len(sys.argv) > 1 else str(pathlib.Path(__file__).resolve().parent / "grounding_contexts.jsonl")
 
 # tokens that mark a "phase" of a quantity, not a distinct variable
 _PHASE_SUFFIXES = {"initial", "final", "init", "fin", "start", "end", "max", "min",

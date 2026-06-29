@@ -160,6 +160,9 @@ curl -X POST http://127.0.0.1:8000/api/tot/sessions \
 - `skills.md` - skill calling conventions and usage guidance
 - `tests/` - API, scheduler, FSM, and backend regression tests
 - `environment.yml` - conda environment definition
+- `experiments/` - reproducibility scripts and data for the paper (A/B harness, demonstrators, grounding-precision analysis); see `experiments/README.md`
+- `reports/` - A/B results and `FINDINGS.md`
+- `PAPER.md` - workshop paper: advisory symbolic step-verification in ToT physics reasoning
 
 
 ## Testing
