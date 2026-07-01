@@ -20,7 +20,7 @@ from .models import (
     ProposalPayload,
     ReflectionPayload,
 )
-from .utils import META_TASK_STRATEGY_SCAN_GUIDANCE, _build_model, _model_dump, _model_field_names
+from .utils import META_TASK_STRATEGY_SCAN_GUIDANCE, _build_model, _build_model_lenient, _model_dump, _model_field_names
 from .errors import (
     ChatBackendError,
     ChatBackendResponseError,
@@ -2951,13 +2951,24 @@ class LocalChatDualModelBackendAdapter(ReasoningBackendAdapter):
             try:
                 return self._validate_payload(response_model, repaired_response)
             except (TypeError, ValueError) as repair_exc:
-                raise ValueError(f"{initial_exc}; repair attempt failed: {repair_exc}") from repair_exc
+                # Last resort: even the repaired payload is noisy (e.g. a weaker
+                # model echoes error/raw_response fields). Salvage the recognized
+                # fields so the node degrades to an empty step instead of hard-
+                # failing. If that too fails (no parseable JSON, missing required
+                # fields), surface the combined error.
+                try:
+                    return self._validate_payload(response_model, repaired_response, lenient=True)
+                except (TypeError, ValueError):
+                    raise ValueError(f"{initial_exc}; repair attempt failed: {repair_exc}") from repair_exc
 
     @staticmethod
-    def _validate_payload(response_model: type[BaseModel], raw_response: Any) -> dict[str, Any]:
+    def _validate_payload(
+        response_model: type[BaseModel], raw_response: Any, *, lenient: bool = False
+    ) -> dict[str, Any]:
         normalized = _normalize_chat_payload(raw_response)
-        validated = _build_model(response_model, _coerce_model_payload(response_model, normalized))
-        return _model_dump(validated)
+        coerced = _coerce_model_payload(response_model, normalized)
+        build = _build_model_lenient if lenient else _build_model
+        return _model_dump(build(response_model, coerced))
 
     @staticmethod
     def _repair_system_prompt(stage: str) -> str:

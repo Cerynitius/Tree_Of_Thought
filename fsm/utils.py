@@ -27,7 +27,12 @@ def _model_field_names(model_type: type[BaseModel]) -> set[str]:
 
 
 def _build_model(model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
-    """Construct a schema-locked Pydantic model with v1/v2 compatibility."""
+    """Construct a schema-locked Pydantic model with v1/v2 compatibility.
+
+    Unexpected fields raise, by design: the backend catches that to trigger a
+    single repair call (re-ask the model for a clean payload). For the last-resort
+    path when even the repaired payload is still noisy, see ``_build_model_lenient``.
+    """
 
     unexpected = set(payload) - _model_field_names(model_type)
     if unexpected:
@@ -37,6 +42,22 @@ def _build_model(model_type: type[BaseModel], payload: dict[str, Any]) -> BaseMo
         return model_type.model_validate(payload)
     except AttributeError:
         return model_type.parse_obj(payload)
+
+
+def _build_model_lenient(model_type: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
+    """Build a model, dropping unknown fields.
+
+    Last-resort fallback for the repair path: when even a repaired payload carries
+    stray keys (weaker models echo ``error`` / ``raw_response`` / ``reasoning``),
+    salvage the recognized fields so a noisy model degrades gracefully to an empty
+    step instead of hard-failing the whole node. Missing required fields still fail.
+    """
+
+    recognized = {key: value for key, value in payload.items() if key in _model_field_names(model_type)}
+    try:
+        return model_type.model_validate(recognized)
+    except AttributeError:
+        return model_type.parse_obj(recognized)
 
 
 def _model_dump(model: BaseModel) -> dict[str, Any]:
