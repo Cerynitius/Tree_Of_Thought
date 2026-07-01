@@ -1,0 +1,330 @@
+{
+  "source": "experiments/hard_physics_problems.json",
+  "max_expansions": 16,
+  "cases": 19,
+  "solved": 17,
+  "solved_rate": 0.895,
+  "correct_answer_pruned": 2,
+  "grounding_prunes_total": 9,
+  "errored_cases": 0,
+  "suppressed_boundary_entries": [
+    "active_boundary_condition = finite aperture limit",
+    "active_boundary_condition = v_infinity = 0",
+    "active_boundary_condition = y = -x tan(20\u00b0) at landing time t > 0",
+    "active_boundary_condition = y = -x tan(phi) at landing time t > 0",
+    "active_control_parameter = finite aperture diameter D constrains diffraction spread",
+    "active_control_parameter = static_friction_work = 0",
+    "active_correction = damping term (R/2L)^2 subtracted from 1/(LC)",
+    "active_correction = external force set to zero for free-space flight",
+    "active_correction = gravitational potential energy closure for escape trajectory",
+    "active_correction = set dissipation term to zero for conservative escape trajectory",
+    "active_correction = slope landing condition y = -x tan(20 deg)",
+    "active_correction = thin-rod pivot inertia closure I=(1/3)mL^2",
+    "no_slip_at_rim = True",
+    "string_end_fixed = True"
+  ],
+  "rows": [
+    {
+      "case_id": "hard_relativistic_sticky_collision",
+      "topic": "relativity / inelastic collision (invariant mass)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 29,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 502.1,
+      "_i": 1
+    },
+    {
+      "case_id": "hard_thermo_rectangular_cycle",
+      "topic": "thermodynamics / four-step cycle net work",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 140.5,
+      "_i": 2
+    },
+    {
+      "case_id": "hard_projectile_downhill_slope",
+      "topic": "mechanics / projectile onto an inclined plane",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition",
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = y = -x tan(20\u00b0) at landing time t > 0",
+        "active_boundary_condition = y = -x tan(phi) at landing time t > 0",
+        "active_correction = slope landing condition y = -x tan(20 deg)"
+      ],
+      "seconds": 116.5,
+      "_i": 3
+    },
+    {
+      "case_id": "hard_relativistic_doppler",
+      "topic": "relativity / relativistic Doppler redshift",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = finite aperture limit",
+        "active_control_parameter = finite aperture diameter D constrains diffraction spread"
+      ],
+      "seconds": 261.0,
+      "_i": 4
+    },
+    {
+      "case_id": "hard_compton_scatter_90",
+      "topic": "quantum / Compton scattering",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 170.7,
+      "_i": 5
+    },
+    {
+      "case_id": "hard_adiabatic_compression_temp",
+      "topic": "thermodynamics / adiabatic compression",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 146.6,
+      "_i": 6
+    },
+    {
+      "case_id": "hard_reduced_mass_oscillation",
+      "topic": "mechanics / two-body reduced-mass oscillation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 18,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 255.1,
+      "_i": 7
+    },
+    {
+      "case_id": "hard_banked_curve_max_speed",
+      "topic": "mechanics / banked curve with friction",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_control_parameter"
+      ],
+      "suppressed_boundary_samples": [
+        "active_control_parameter = static_friction_work = 0"
+      ],
+      "seconds": 279.1,
+      "_i": 8
+    },
+    {
+      "case_id": "hard_physical_pendulum_rod",
+      "topic": "mechanics / physical pendulum",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = thin-rod pivot inertia closure I=(1/3)mL^2"
+      ],
+      "seconds": 164.6,
+      "_i": 9
+    },
+    {
+      "case_id": "hard_satellite_orbit_period",
+      "topic": "gravitation / circular orbit period",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 27,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 525.8,
+      "_i": 10
+    },
+    {
+      "case_id": "hard_rlc_damped_frequency",
+      "topic": "EM / series RLC damped oscillation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = damping term (R/2L)^2 subtracted from 1/(LC)"
+      ],
+      "seconds": 116.4,
+      "_i": 11
+    },
+    {
+      "case_id": "hard_string_third_harmonic",
+      "topic": "waves / harmonics on a string",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 146.5,
+      "_i": 12
+    },
+    {
+      "case_id": "hard_thin_film_min_thickness",
+      "topic": "optics / thin-film interference",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 116.4,
+      "_i": 13
+    },
+    {
+      "case_id": "hard_rocket_delta_v",
+      "topic": "mechanics / Tsiolkovsky rocket equation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = external force set to zero for free-space flight"
+      ],
+      "seconds": 158.6,
+      "_i": 14
+    },
+    {
+      "case_id": "hard_cyclotron_proton",
+      "topic": "EM / cyclotron frequency",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 128.5,
+      "_i": 15
+    },
+    {
+      "case_id": "hard_yoyo_disk_acceleration",
+      "topic": "rotation / unwinding disk (yo-yo)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: no_slip_at_rim",
+        "Boundary condition key is not grounded in equations or known variables: string_end_fixed"
+      ],
+      "suppressed_boundary_samples": [
+        "no_slip_at_rim = True",
+        "string_end_fixed = True"
+      ],
+      "seconds": 152.6,
+      "_i": 16
+    },
+    {
+      "case_id": "hard_atwood_incline_friction",
+      "topic": "mechanics / incline + pulley + hanging mass with friction",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 146.5,
+      "_i": 17
+    },
+    {
+      "case_id": "hard_dielectric_capacitor_energy",
+      "topic": "EM / capacitor with dielectric inserted after disconnect",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 218.9,
+      "_i": 18
+    },
+    {
+      "case_id": "hard_escape_velocity_planet",
+      "topic": "gravitation / escape velocity",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 28,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = v_infinity = 0",
+        "active_correction = gravitational potential energy closure for escape trajectory",
+        "active_correction = set dissipation term to zero for conservative escape trajectory"
+      ],
+      "seconds": 182.8,
+      "_i": 19
+    }
+  ]
+}

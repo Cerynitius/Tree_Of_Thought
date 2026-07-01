@@ -1,0 +1,135 @@
+[
+  {
+    "case_id": "hard_relativistic_sticky_collision",
+    "topic": "relativity / inelastic collision (invariant mass)",
+    "prompt": "In the lab frame, a particle of rest mass m moving at 0.80c collides head-on with an identical particle at rest and they stick together. What is the rest mass of the composite object, expressed as a multiple of m?",
+    "ref": "E=(gamma+1)mc^2=2.6667mc^2, pc=gamma*0.8 mc^2=1.3333mc^2, M=sqrt(E^2-(pc)^2)/c^2=sqrt(2.6667^2-1.3333^2)m=2.309m",
+    "expected_values": [{"label": "rest_mass_ratio", "value": 2.309, "abs_tol": 0.05, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_thermo_rectangular_cycle",
+    "topic": "thermodynamics / four-step cycle net work",
+    "prompt": "One mole of an ideal gas is taken around a cycle: (1) isothermal expansion at 400 K from 1.0 L to 3.0 L; (2) isochoric cooling to 300 K; (3) isothermal compression at 300 K back to 1.0 L; (4) isochoric heating to 400 K. What is the net work done by the gas over the full cycle? Use R = 8.314 J/(mol*K).",
+    "ref": "W=nR*ln3*(400-300)=8.314*1.0986*100=913 J",
+    "expected_values": [{"label": "net_work_J", "value": 913.0, "abs_tol": 30, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "hard_projectile_downhill_slope",
+    "topic": "mechanics / projectile onto an inclined plane",
+    "prompt": "A projectile is launched at 20 m/s at 50 degrees above the horizontal from the top of a straight slope that descends at 20 degrees below the horizontal. How far along the slope does it land? Use g = 9.8 m/s^2.",
+    "ref": "R=2 v0^2 cos(a) sin(a+phi)/(g cos^2 phi)=2*400*cos50*sin70/(9.8*cos^2 20)=55.8 m",
+    "expected_values": [{"label": "range_along_slope_m", "value": 55.8, "abs_tol": 2.5, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "hard_relativistic_doppler",
+    "topic": "relativity / relativistic Doppler redshift",
+    "prompt": "A galaxy recedes from Earth at 0.10c. The hydrogen-alpha line has a rest wavelength of 656.3 nm. At what wavelength is it observed on Earth?",
+    "ref": "lambda_obs=lambda*sqrt((1+beta)/(1-beta))=656.3*sqrt(1.1/0.9)=725.6 nm",
+    "expected_values": [{"label": "observed_wavelength_nm", "value": 725.6, "abs_tol": 5, "rel_tol": 0.02}]
+  },
+  {
+    "case_id": "hard_compton_scatter_90",
+    "topic": "quantum / Compton scattering",
+    "prompt": "An X-ray photon of wavelength 50.0 pm scatters off a free electron through 90 degrees. What is the wavelength of the scattered photon? Use the Compton wavelength h/(m_e c) = 2.426 pm.",
+    "ref": "lambda'=50.0 + 2.426*(1-cos90)=52.43 pm",
+    "expected_values": [{"label": "scattered_wavelength_pm", "value": 52.43, "abs_tol": 0.6, "rel_tol": 0.02}]
+  },
+  {
+    "case_id": "hard_adiabatic_compression_temp",
+    "topic": "thermodynamics / adiabatic compression",
+    "prompt": "A monatomic ideal gas (gamma = 5/3) at 300 K is compressed adiabatically to one quarter of its initial volume. What is the final temperature?",
+    "ref": "T2=T1*(V1/V2)^(gamma-1)=300*4^(2/3)=756 K",
+    "expected_values": [{"label": "final_temperature_K", "value": 756.0, "abs_tol": 15, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_reduced_mass_oscillation",
+    "topic": "mechanics / two-body reduced-mass oscillation",
+    "prompt": "Two masses, 1.0 kg and 2.0 kg, are connected by a spring of stiffness 200 N/m and oscillate freely along a frictionless line. What is the frequency of oscillation in Hz?",
+    "ref": "mu=(1*2)/3=0.6667 kg; f=(1/2pi)sqrt(k/mu)=(1/2pi)sqrt(300)=2.76 Hz",
+    "expected_values": [{"label": "frequency_Hz", "value": 2.76, "abs_tol": 0.1, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "hard_banked_curve_max_speed",
+    "topic": "mechanics / banked curve with friction",
+    "prompt": "A car rounds a curve of radius 50 m banked at 20 degrees. The coefficient of static friction between tires and road is 0.30. What is the maximum speed at which the car can round the curve without slipping? Use g = 9.8 m/s^2.",
+    "ref": "v=sqrt(g r (tanθ+mu)/(1-mu tanθ))=sqrt(9.8*50*(0.364+0.3)/(1-0.3*0.364))=19.1 m/s",
+    "expected_values": [{"label": "max_speed_m_s", "value": 19.1, "abs_tol": 0.7, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "hard_physical_pendulum_rod",
+    "topic": "mechanics / physical pendulum",
+    "prompt": "A uniform thin rod of length 1.0 m is pivoted about one end and swings as a physical pendulum. What is the period of small oscillations? Use g = 9.8 m/s^2.",
+    "ref": "T=2pi sqrt(I/(m g d))=2pi sqrt((L^2/3)/(g L/2))=2pi sqrt(2L/3g)=1.64 s",
+    "expected_values": [{"label": "period_s", "value": 1.64, "abs_tol": 0.06, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_satellite_orbit_period",
+    "topic": "gravitation / circular orbit period",
+    "prompt": "A satellite is in a circular orbit 300 km above Earth's surface. What is its orbital period in seconds? Use G = 6.674e-11, Earth mass M = 5.97e24 kg, Earth radius R = 6371 km.",
+    "ref": "r=6.671e6 m; T=2pi sqrt(r^3/GM)=5424 s",
+    "expected_values": [{"label": "period_s", "value": 5424.0, "abs_tol": 150, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_rlc_damped_frequency",
+    "topic": "EM / series RLC damped oscillation",
+    "prompt": "A series RLC circuit has L = 0.50 H, C = 200 microfarad, and R = 10 ohm. What is the angular frequency of the damped oscillations in rad/s?",
+    "ref": "w0^2=1/LC=1e4; alpha=R/2L=10; wd=sqrt(w0^2-alpha^2)=sqrt(9900)=99.5 rad/s",
+    "expected_values": [{"label": "damped_angular_frequency_rad_s", "value": 99.5, "abs_tol": 2, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_string_third_harmonic",
+    "topic": "waves / harmonics on a string",
+    "prompt": "A string of length 1.2 m under 80 N of tension has linear mass density 0.0050 kg/m, fixed at both ends. What is the frequency of its third harmonic?",
+    "ref": "v=sqrt(T/mu)=126.5 m/s; f3=3v/2L=158.1 Hz",
+    "expected_values": [{"label": "frequency_Hz", "value": 158.1, "abs_tol": 4, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_thin_film_min_thickness",
+    "topic": "optics / thin-film interference",
+    "prompt": "A soap film (refractive index 1.33) in air is illuminated at normal incidence. What is the minimum nonzero film thickness that gives constructive interference in reflected 550 nm light? Account for the phase shift on reflection.",
+    "ref": "constructive (reflection, one pi shift): 2 n t = (m-1/2) lambda; min t=lambda/(4n)=103.4 nm",
+    "expected_values": [{"label": "min_thickness_nm", "value": 103.4, "abs_tol": 4, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "hard_rocket_delta_v",
+    "topic": "mechanics / Tsiolkovsky rocket equation",
+    "prompt": "A rocket has an exhaust speed of 3000 m/s and burns fuel until its mass is one quarter of the initial (fueled) mass. What is the change in speed it achieves in free space?",
+    "ref": "dv=v_e ln(m_i/m_f)=3000*ln4=4159 m/s",
+    "expected_values": [{"label": "delta_v_m_s", "value": 4159.0, "abs_tol": 90, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_cyclotron_proton",
+    "topic": "EM / cyclotron frequency",
+    "prompt": "A proton moves in a uniform 0.50 T magnetic field. What is its cyclotron frequency in MHz? Use proton charge 1.602e-19 C and proton mass 1.673e-27 kg.",
+    "ref": "f=qB/(2pi m)=1.602e-19*0.5/(2pi*1.673e-27)=7.62e6 Hz=7.62 MHz",
+    "expected_values": [{"label": "frequency_MHz", "value": 7.62, "abs_tol": 0.2, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_yoyo_disk_acceleration",
+    "topic": "rotation / unwinding disk (yo-yo)",
+    "prompt": "A uniform solid disk of mass M and radius R has a light string wrapped around its rim; the free end is held fixed and the disk is released from rest, unwinding as it falls. What is its downward linear acceleration? Use g = 9.8 m/s^2.",
+    "ref": "a=g/(1+I/mR^2)=g/(1+1/2)=6.53 m/s^2",
+    "expected_values": [{"label": "acceleration_m_s2", "value": 6.53, "abs_tol": 0.2, "rel_tol": 0.03}]
+  },
+  {
+    "case_id": "hard_atwood_incline_friction",
+    "topic": "mechanics / incline + pulley + hanging mass with friction",
+    "prompt": "A 3.0 kg block sits on a 30 degree incline (kinetic friction coefficient 0.20). A light string over a frictionless pulley at the top connects it to a 4.0 kg mass hanging vertically. The system is released. What is the magnitude of its acceleration? Use g = 9.8 m/s^2.",
+    "ref": "a=(m2 g - m1 g sin30 - mu m1 g cos30)/(m1+m2)=(39.2-14.7-5.09)/7=2.77 m/s^2",
+    "expected_values": [{"label": "acceleration_m_s2", "value": 2.77, "abs_tol": 0.12, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "hard_dielectric_capacitor_energy",
+    "topic": "EM / capacitor with dielectric inserted after disconnect",
+    "prompt": "A 10 microfarad parallel-plate capacitor is charged to 100 V and then disconnected from the battery. A dielectric of constant 3.0 is then inserted, filling the gap. What is the energy now stored in the capacitor?",
+    "ref": "Q=C0V0=1e-3 C fixed; C=3C0=30uF; U=Q^2/2C=(1e-3)^2/(2*30e-6)=0.0167 J",
+    "expected_values": [{"label": "energy_J", "value": 0.0167, "abs_tol": 0.001, "rel_tol": 0.04}]
+  },
+  {
+    "case_id": "hard_escape_velocity_planet",
+    "topic": "gravitation / escape velocity",
+    "prompt": "What is the escape velocity from the surface of a planet of mass 6.4e23 kg and radius 3.4e6 m? Use G = 6.674e-11.",
+    "ref": "v=sqrt(2GM/R)=sqrt(2*6.674e-11*6.4e23/3.4e6)=5010 m/s",
+    "expected_values": [{"label": "escape_velocity_m_s", "value": 5010.0, "abs_tol": 120, "rel_tol": 0.03}]
+  }
+]
