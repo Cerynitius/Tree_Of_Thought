@@ -1,0 +1,538 @@
+{
+  "source": "suites=['hard', 'limit']",
+  "max_expansions": 16,
+  "cases": 32,
+  "solved": 27,
+  "solved_rate": 0.844,
+  "correct_answer_pruned": 5,
+  "grounding_prunes_total": 14,
+  "errored_cases": 0,
+  "suppressed_boundary_entries": [
+    "V(infinity)=0 = active_boundary_condition",
+    "active_boundary_condition = A_z continuous at r=a",
+    "active_boundary_condition = Coulomb gauge div A = 0",
+    "active_boundary_condition = V(inf)=0 sets integration constant",
+    "active_boundary_condition = V(x) -> 0 as x -> infinity",
+    "active_boundary_condition = V_c(0) = -5.0 V",
+    "active_boundary_condition = phi(R) continuous with external solution",
+    "active_boundary_condition = x(0)=1 m at t=2.0 s",
+    "active_correction = Coulomb gauge Laplacian A_z = -mu_0 J_z with A_phi=0 and A_r=0",
+    "active_correction = F_n \\perp ds implies W = 0",
+    "active_correction = N = 0 at top of loop",
+    "active_correction = N = mg*cos(theta) replaces N=mg assumption",
+    "active_correction = charge conservation closure",
+    "active_correction = initial potential step at t=0 matches V_0",
+    "active_correction = integration limit capped at R for r > R",
+    "active_correction = subtract constant kinetic friction f_k = 2.0 N from F(x) in the net force expression",
+    "v(0) = 2 m/s",
+    "x(0) = 1 m"
+  ],
+  "rows": [
+    {
+      "case_id": "em_nonuniform_line_charge_axis_field",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 152.6,
+      "_i": 1
+    },
+    {
+      "case_id": "em_uniform_disk_axis_field",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 128.5,
+      "_i": 2
+    },
+    {
+      "case_id": "em_radial_density_sphere_inside_field",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = phi(R) continuous with external solution"
+      ],
+      "seconds": 122.5,
+      "_i": 3
+    },
+    {
+      "case_id": "em_exponential_field_potential",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition axis is not grounded in equations or known variables: V(infinity)"
+      ],
+      "suppressed_boundary_samples": [
+        "V(infinity)=0 = active_boundary_condition",
+        "active_boundary_condition = V(inf)=0 sets integration constant"
+      ],
+      "seconds": 128.6,
+      "_i": 4
+    },
+    {
+      "case_id": "em_coaxial_capacitance_pf",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 140.5,
+      "_i": 5
+    },
+    {
+      "case_id": "em_rc_discharge_milli_units",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 140.5,
+      "_i": 6
+    },
+    {
+      "case_id": "em_nonuniform_current_wire_bfield_mt",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = Coulomb gauge div A = 0"
+      ],
+      "seconds": 556.2,
+      "_i": 7
+    },
+    {
+      "case_id": "em_decaying_flux_emf_mv",
+      "topic": "physics_c_em_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 122.5,
+      "_i": 8
+    },
+    {
+      "case_id": "trap_constant_speed_incline_friction",
+      "topic": "mixed_traps",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = N = mg*cos(theta) replaces N=mg assumption"
+      ],
+      "seconds": 134.5,
+      "_i": 9
+    },
+    {
+      "case_id": "trap_normal_force_work",
+      "topic": "mixed_traps",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = F_n \\perp ds implies W = 0"
+      ],
+      "seconds": 387.4,
+      "_i": 10
+    },
+    {
+      "case_id": "trap_loop_minimum_top_speed",
+      "topic": "mixed_traps",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = N = 0 at top of loop"
+      ],
+      "seconds": 122.5,
+      "_i": 11
+    },
+    {
+      "case_id": "trap_table_block_hanging_mass_friction",
+      "topic": "mixed_traps",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.5,
+      "_i": 12
+    },
+    {
+      "case_id": "trap_potential_zero_not_field_zero",
+      "topic": "mixed_traps",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = V(x) -> 0 as x -> infinity"
+      ],
+      "seconds": 122.5,
+      "_i": 13
+    },
+    {
+      "case_id": "trap_induction_current_magnitude",
+      "topic": "mixed_traps",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 194.8,
+      "_i": 14
+    },
+    {
+      "case_id": "freeform_flux_derivative_emf",
+      "topic": "freeform_no_schema",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 158.7,
+      "_i": 15
+    },
+    {
+      "case_id": "freeform_uniform_rod_axis_field",
+      "topic": "freeform_no_schema",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 146.5,
+      "_i": 16
+    },
+    {
+      "case_id": "freeform_loop_center_field_microt",
+      "topic": "freeform_no_schema",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.5,
+      "_i": 17
+    },
+    {
+      "case_id": "freeform_acceleration_integral_displacement",
+      "topic": "freeform_no_schema",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = x(0)=1 m at t=2.0 s",
+        "v(0) = 2 m/s",
+        "x(0) = 1 m"
+      ],
+      "seconds": 273.1,
+      "_i": 18
+    },
+    {
+      "case_id": "freeform_rc_charging_voltage",
+      "topic": "freeform_no_schema",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 152.6,
+      "_i": 19
+    },
+    {
+      "case_id": "freeform_spring_launch_speed",
+      "topic": "freeform_no_schema",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 140.6,
+      "_i": 20
+    },
+    {
+      "case_id": "limit_signed_potential_difference",
+      "topic": "limit_sign_and_calculus",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 122.5,
+      "_i": 21
+    },
+    {
+      "case_id": "limit_reversed_battery_rc",
+      "topic": "limit_transients",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = V_c(0) = -5.0 V",
+        "active_correction = initial potential step at t=0 matches V_0"
+      ],
+      "seconds": 146.6,
+      "_i": 22
+    },
+    {
+      "case_id": "limit_coax_two_regions",
+      "topic": "limit_ampere_piecewise",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": false,
+      "correct_answer_pruned": true,
+      "grounding_prunes": 2,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_boundary_condition",
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = A_z continuous at r=a",
+        "active_correction = Coulomb gauge Laplacian A_z = -mu_0 J_z with A_phi=0 and A_r=0"
+      ],
+      "seconds": 273.1,
+      "_i": 23
+    },
+    {
+      "case_id": "limit_moving_loop_changing_field",
+      "topic": "limit_flux_product_rule",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 128.5,
+      "_i": 24
+    },
+    {
+      "case_id": "limit_disconnected_capacitor_dielectric",
+      "topic": "limit_capacitor_energy",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 140.6,
+      "_i": 25
+    },
+    {
+      "case_id": "limit_nonuniform_rod_rotation",
+      "topic": "limit_nonuniform_inertia",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 14,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 44.2,
+      "_i": 26
+    },
+    {
+      "case_id": "limit_series_rlc_power",
+      "topic": "limit_ac_circuit",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 176.6,
+      "_i": 27
+    },
+    {
+      "case_id": "limit_oppositely_charged_capacitors",
+      "topic": "limit_charge_sharing",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = charge conservation closure"
+      ],
+      "seconds": 327.3,
+      "_i": 28
+    },
+    {
+      "case_id": "limit_nonuniform_rod_center_of_mass",
+      "topic": "limit_calculus_mechanics",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 152.6,
+      "_i": 29
+    },
+    {
+      "case_id": "limit_work_energy_stop_before_target",
+      "topic": "limit_physical_consistency",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = subtract constant kinetic friction f_k = 2.0 N from F(x) in the net force expression"
+      ],
+      "seconds": 212.6,
+      "_i": 30
+    },
+    {
+      "case_id": "limit_signed_sphere_field",
+      "topic": "limit_gauss_sign",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 1,
+      "grounding_violation_samples": [
+        "Boundary condition key is not grounded in equations or known variables: active_correction"
+      ],
+      "suppressed_boundary_samples": [
+        "active_correction = integration limit capped at R for r > R"
+      ],
+      "seconds": 152.6,
+      "_i": 31
+    },
+    {
+      "case_id": "limit_sliding_rod_with_resistor",
+      "topic": "limit_motional_emf_dynamics",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.6,
+      "_i": 32
+    }
+  ]
+}
