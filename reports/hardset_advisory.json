@@ -1,0 +1,327 @@
+{
+  "source": "experiments/hard_physics_problems.json",
+  "max_expansions": 16,
+  "cases": 19,
+  "solved": 18,
+  "solved_rate": 0.947,
+  "correct_answer_pruned": 0,
+  "grounding_prunes_total": 0,
+  "errored_cases": 0,
+  "suppressed_boundary_entries": [
+    "active_boundary_condition = adiabatic constraint Q=0",
+    "active_boundary_condition = forward motion verified",
+    "active_boundary_condition = inextensible string constraint",
+    "active_boundary_condition = small-angle approximation \\theta << 1 rad",
+    "active_boundary_condition = trajectory intersects y = -x tan(\u03b1)",
+    "active_boundary_condition = y = x*tan(phi) at landing",
+    "active_correction = Compton shift closure for photon-electron scattering",
+    "active_correction = constant charge constraint replaces fixed voltage source",
+    "active_correction = dissipation term set to zero for free-space ideal expansion",
+    "active_correction = gamma = 5/3 for monatomic ideal gas",
+    "active_correction = gravitational potential energy baseline at infinity",
+    "active_correction = invariant mass closure replaces Newtonian work",
+    "active_correction = isochoric work contribution set to zero",
+    "active_correction = kinetic energy converts to internal rest mass",
+    "active_correction = parallel-axis theorem shifts I from mL^2/12 to mL^2/3",
+    "active_correction = relativistic energy-momentum invariant replaces Newtonian force balance",
+    "active_correction = replace Newtonian kinetic work with relativistic energy-momentum invariant",
+    "active_correction = uniform tension assumption"
+  ],
+  "rows": [
+    {
+      "case_id": "hard_relativistic_sticky_collision",
+      "topic": "relativity / inelastic collision (invariant mass)",
+      "final_status": "ready",
+      "error": "",
+      "node_count": 31,
+      "solved": false,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = invariant mass closure replaces Newtonian work",
+        "active_correction = kinetic energy converts to internal rest mass",
+        "active_correction = relativistic energy-momentum invariant replaces Newtonian force balance",
+        "active_correction = replace Newtonian kinetic work with relativistic energy-momentum invariant"
+      ],
+      "seconds": 428.9,
+      "_i": 1
+    },
+    {
+      "case_id": "hard_thermo_rectangular_cycle",
+      "topic": "thermodynamics / four-step cycle net work",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = isochoric work contribution set to zero"
+      ],
+      "seconds": 122.7,
+      "_i": 2
+    },
+    {
+      "case_id": "hard_projectile_downhill_slope",
+      "topic": "mechanics / projectile onto an inclined plane",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = trajectory intersects y = -x tan(\u03b1)",
+        "active_boundary_condition = y = x*tan(phi) at landing"
+      ],
+      "seconds": 605.4,
+      "_i": 3
+    },
+    {
+      "case_id": "hard_relativistic_doppler",
+      "topic": "relativity / relativistic Doppler redshift",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 140.8,
+      "_i": 4
+    },
+    {
+      "case_id": "hard_compton_scatter_90",
+      "topic": "quantum / Compton scattering",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = Compton shift closure for photon-electron scattering"
+      ],
+      "seconds": 243.4,
+      "_i": 5
+    },
+    {
+      "case_id": "hard_adiabatic_compression_temp",
+      "topic": "thermodynamics / adiabatic compression",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = adiabatic constraint Q=0",
+        "active_correction = gamma = 5/3 for monatomic ideal gas"
+      ],
+      "seconds": 140.8,
+      "_i": 6
+    },
+    {
+      "case_id": "hard_reduced_mass_oscillation",
+      "topic": "mechanics / two-body reduced-mass oscillation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 27,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 207.2,
+      "_i": 7
+    },
+    {
+      "case_id": "hard_banked_curve_max_speed",
+      "topic": "mechanics / banked curve with friction",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.5,
+      "_i": 8
+    },
+    {
+      "case_id": "hard_physical_pendulum_rod",
+      "topic": "mechanics / physical pendulum",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = small-angle approximation \\theta << 1 rad",
+        "active_correction = parallel-axis theorem shifts I from mL^2/12 to mL^2/3"
+      ],
+      "seconds": 158.6,
+      "_i": 9
+    },
+    {
+      "case_id": "hard_satellite_orbit_period",
+      "topic": "gravitation / circular orbit period",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 152.6,
+      "_i": 10
+    },
+    {
+      "case_id": "hard_rlc_damped_frequency",
+      "topic": "EM / series RLC damped oscillation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.6,
+      "_i": 11
+    },
+    {
+      "case_id": "hard_string_third_harmonic",
+      "topic": "waves / harmonics on a string",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = uniform tension assumption"
+      ],
+      "seconds": 158.6,
+      "_i": 12
+    },
+    {
+      "case_id": "hard_thin_film_min_thickness",
+      "topic": "optics / thin-film interference",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 134.5,
+      "_i": 13
+    },
+    {
+      "case_id": "hard_rocket_delta_v",
+      "topic": "mechanics / Tsiolkovsky rocket equation",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = dissipation term set to zero for free-space ideal expansion"
+      ],
+      "seconds": 146.5,
+      "_i": 14
+    },
+    {
+      "case_id": "hard_cyclotron_proton",
+      "topic": "EM / cyclotron frequency",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 158.5,
+      "_i": 15
+    },
+    {
+      "case_id": "hard_yoyo_disk_acceleration",
+      "topic": "rotation / unwinding disk (yo-yo)",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [],
+      "seconds": 182.5,
+      "_i": 16
+    },
+    {
+      "case_id": "hard_atwood_incline_friction",
+      "topic": "mechanics / incline + pulley + hanging mass with friction",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 18,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_boundary_condition = forward motion verified",
+        "active_boundary_condition = inextensible string constraint"
+      ],
+      "seconds": 387.3,
+      "_i": 17
+    },
+    {
+      "case_id": "hard_dielectric_capacitor_energy",
+      "topic": "EM / capacitor with dielectric inserted after disconnect",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = constant charge constraint replaces fixed voltage source"
+      ],
+      "seconds": 152.5,
+      "_i": 18
+    },
+    {
+      "case_id": "hard_escape_velocity_planet",
+      "topic": "gravitation / escape velocity",
+      "final_status": "busy",
+      "error": "",
+      "node_count": 16,
+      "solved": true,
+      "correct_answer_pruned": false,
+      "grounding_prunes": 0,
+      "grounding_violation_samples": [],
+      "suppressed_boundary_samples": [
+        "active_correction = gravitational potential energy baseline at infinity"
+      ],
+      "seconds": 182.6,
+      "_i": 19
+    }
+  ]
+}
