@@ -1027,5 +1027,30 @@ class SessionStoreEvictionTests(unittest.TestCase):
         self.assertIn(fresh, store._sessions)
 
 
+class PayloadLeniencyTests(unittest.TestCase):
+    """Strict build rejects stray fields (which triggers a repair call); the
+    lenient last-resort salvages recognized fields so a persistently-noisy model
+    degrades gracefully instead of hard-failing the node."""
+
+    def test_strict_rejects_but_lenient_salvages_noise(self) -> None:
+        from fsm.models import ReflectionPayload
+        from fsm.utils import _build_model, _build_model_lenient
+
+        payload = {
+            "thought_step": "reflect on the step",
+            "equations": ["v_f^2 = v_i^2 + 2*a*d"],
+            "error": "backend noise",        # unknown
+            "raw_response": "```json ...```", # unknown
+            "reasoning": "chatter",           # unknown
+        }
+        # strict raises -> this is what triggers the backend repair path
+        with self.assertRaises(ValueError):
+            _build_model(ReflectionPayload, payload)
+        # lenient drops the noise and keeps the recognized fields
+        model = _build_model_lenient(ReflectionPayload, payload)
+        self.assertEqual(model.thought_step, "reflect on the step")
+        self.assertEqual(model.equations, ["v_f^2 = v_i^2 + 2*a*d"])
+
+
 if __name__ == "__main__":
     unittest.main()
